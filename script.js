@@ -76,6 +76,7 @@ function init() {
 
   stepBtn.disabled = false;
   startStopBtn.disabled = false;
+  startStopBtn.textContent = '開始';
 }
 
 // 1ステップ実行
@@ -159,7 +160,7 @@ function runLoop() {
 function startAuto() {
   if (isPalindromeFound) return;
   isRunning = true;
-  startStopBtn.textContent = '停止';
+  startStopBtn.textContent = '一時停止';
   startStopBtn.classList.add('running');
   statusBadge.className = 'status-text status-running';
   statusBadge.textContent = '探索中...';
@@ -173,11 +174,11 @@ function stopAuto() {
     cancelAnimationFrame(timerId);
     timerId = null;
   }
-  startStopBtn.textContent = '開始';
+  startStopBtn.textContent = step > 0 ? '再開' : '開始';
   startStopBtn.classList.remove('running');
   if (!isPalindromeFound) {
     statusBadge.className = 'status-text status-idle';
-    statusBadge.textContent = '停止中';
+    statusBadge.textContent = '一時停止中';
   }
 }
 
@@ -193,6 +194,9 @@ startStopBtn.addEventListener('click', () => {
 stepBtn.addEventListener('click', () => {
   if (isRunning) stopAuto();
   executeOneStep();
+  if (!isPalindromeFound && !isRunning) {
+    startStopBtn.textContent = '再開';
+  }
 });
 
 resetBtn.addEventListener('click', () => {

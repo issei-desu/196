@@ -131,9 +131,23 @@ input[type="text"]:focus {
   gap: 14px;
 }
 
+.buttons-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .button-group {
   display: flex;
   gap: 10px;
+}
+
+.paused-notice {
+  font-size: 0.8rem;
+  color: #b91c1c;
+  font-weight: 600;
+  line-height: 1.2;
+  padding-left: 2px;
 }
 
 .btn {
@@ -566,6 +580,9 @@ input[type="text"]:focus {
   .controls-row {
     flex-direction: column;
     align-items: stretch;
+  }
+  .buttons-container {
+    width: 100%;
   }
   .button-group {
     width: 100%;

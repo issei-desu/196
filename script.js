@@ -15,6 +15,8 @@ const historySection = document.getElementById('historySection');
 const rankingTableBody = document.getElementById('rankingTableBody');
 const emptyRankingMessage = document.getElementById('emptyRankingMessage');
 const userNameInput = document.getElementById('userNameInput');
+const pausedNotice = document.getElementById('pausedNotice');
+const pausedCountdownSec = document.getElementById('pausedCountdownSec');
 
 // 状態変数
 let currentNumber = 0n;
@@ -35,6 +37,44 @@ let liveSyncTimer = null;
 let isPageUnloading = false;
 const LIVE_ACTIVE_THRESHOLD_MS = 9000; // 9秒以内に更新があれば「実行中」
 const PAUSED_TIMEOUT_MS = 60000; // 60秒（1分）以上経過した停止中は自動で「断念」扱い
+let pausedCountdownTimer = null;
+let pausedStartTime = null;
+
+// 一時停止カウントダウン警告
+function startPausedCountdown() {
+  stopPausedCountdown();
+  pausedStartTime = Date.now();
+  const totalSec = Math.floor(PAUSED_TIMEOUT_MS / 1000);
+
+  const updateDisplay = () => {
+    const elapsedSec = Math.floor((Date.now() - pausedStartTime) / 1000);
+    const remaining = Math.max(0, totalSec - elapsedSec);
+    if (pausedCountdownSec) {
+      pausedCountdownSec.textContent = remaining;
+    }
+    if (remaining <= 0) {
+      stopPausedCountdown();
+      giveUpAtCurrentStep();
+    }
+  };
+
+  updateDisplay();
+  if (pausedNotice) {
+    pausedNotice.style.display = 'block';
+  }
+  pausedCountdownTimer = setInterval(updateDisplay, 1000);
+}
+
+function stopPausedCountdown() {
+  if (pausedCountdownTimer) {
+    clearInterval(pausedCountdownTimer);
+    pausedCountdownTimer = null;
+  }
+  pausedStartTime = null;
+  if (pausedNotice) {
+    pausedNotice.style.display = 'none';
+  }
+}
 
 // 速度設定
 const speedSettings = {
@@ -69,6 +109,7 @@ function getUserName() {
 
 // 初期化・リセット
 function init() {
+  stopPausedCountdown();
   if (step > 0 && !isPalindromeFound && initialSeed) {
     recordChallenge(initialSeed, step, currentNumber.toString().length, false, 'abandoned');
   }
@@ -118,6 +159,7 @@ function init() {
 
 // 1ステップ実行
 function executeOneStep() {
+  stopPausedCountdown();
   if (isPalindromeFound) return;
 
   if (historySection && historySection.style.display === 'none') {
@@ -218,6 +260,7 @@ function runLoop() {
 }
 
 function startAuto() {
+  stopPausedCountdown();
   if (isPalindromeFound) return;
   if (checkAndDisplayResolved(initialSeed)) return;
   isRunning = true;
@@ -247,11 +290,17 @@ function stopAuto(sendRecord = true) {
     statusBadge.textContent = '一時停止中';
     if (sendRecord && step > 0) {
       recordChallenge(initialSeed, step, currentNumber.toString().length, false, 'paused');
+      startPausedCountdown();
+    } else {
+      stopPausedCountdown();
     }
+  } else {
+    stopPausedCountdown();
   }
 }
 
 function giveUpAtCurrentStep() {
+  stopPausedCountdown();
   if (step === 0 || isPalindromeFound) return;
   stopAuto(false);
   recordChallenge(initialSeed, step, currentNumber.toString().length, false, 'abandoned');

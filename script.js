@@ -26,6 +26,7 @@ let timerId = null;
 let historyItemsCount = 0;
 const MAX_HISTORY_DOM = 20;
 const RANKING_STORAGE_KEY = 'lychrel_user_ranking';
+const RESOLVED_STORAGE_KEY = 'lychrel_resolved_numbers';
 const USERNAME_STORAGE_KEY = 'lychrel_user_name';
 const SESSION_STORAGE_KEY = 'lychrel_active_session';
 const SHARED_API_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a17e2139ea2a01';
@@ -306,6 +307,24 @@ function saveLocalRanking(list) {
   }
 }
 
+// 解決済み（回文数到達確認済み＝リクレル数ではない数）リストの管理
+function loadLocalResolved() {
+  try {
+    const raw = localStorage.getItem(RESOLVED_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveLocalResolved(list) {
+  try {
+    localStorage.setItem(RESOLVED_STORAGE_KEY, JSON.stringify(list));
+  } catch (e) {
+    console.error('Failed to save resolved numbers locally', e);
+  }
+}
+
 // 実行中のリアルタイム同期タイマー
 function startLiveSync() {
   if (liveSyncTimer) clearInterval(liveSyncTimer);
@@ -323,12 +342,14 @@ function stopLiveSync() {
   }
 }
 
-// リモートとローカルのリストをマージしてソート
-function mergeRankings(remoteList, localList) {
+// リモートとローカルのリストをマージしてソート（解決済みの数は除外）
+function mergeRankings(remoteList, localList, resolvedList = []) {
+  const resolvedSet = new Set(resolvedList);
   const map = new Map();
 
   [...remoteList, ...localList].forEach(item => {
-    if (!item || !item.seed) return;
+    // 誰かが回文数に到達（リクレル数ではないと確認）した数はランキングに乗せない！
+    if (!item || !item.seed || resolvedSet.has(item.seed)) return;
     const existing = map.get(item.seed);
     if (!existing) {
       map.set(item.seed, {
@@ -386,8 +407,14 @@ async function fetchSharedRanking() {
     if (!res.ok) throw new Error('Failed to fetch shared ranking');
     const json = await res.json();
     const remoteList = json.data && Array.isArray(json.data.list) ? json.data.list : [];
+    const remoteResolved = json.data && Array.isArray(json.data.resolved) ? json.data.resolved : [];
+    const localResolved = loadLocalResolved();
+
+    const allResolved = Array.from(new Set([...remoteResolved, ...localResolved]));
+    saveLocalResolved(allResolved);
+
     const localList = loadLocalRanking();
-    const merged = mergeRankings(remoteList, localList);
+    const merged = mergeRankings(remoteList, localList, allResolved);
     saveLocalRanking(merged);
     renderRankingTable(merged);
   } catch (err) {
@@ -403,37 +430,48 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
   const now = Date.now();
   const currentUserName = getUserName();
   let localList = loadLocalRanking();
+  let localResolved = loadLocalResolved();
 
   if (found) {
+    // 誰かが回文数に到達（リクレル数ではないことを確認）した！
+    if (!localResolved.includes(seed)) {
+      localResolved.push(seed);
+      saveLocalResolved(localResolved);
+    }
+    // ランキングから完全除外
     localList = localList.filter(item => item.seed !== seed);
   } else {
-    const idx = localList.findIndex(item => item.seed === seed);
-    if (idx >= 0) {
-      if (currentStep >= localList[idx].steps) {
-        localList[idx].steps = currentStep;
-        localList[idx].digits = digits;
-        localList[idx].status = state;
-        localList[idx].userName = currentUserName;
-        if (state === 'running') localList[idx].lastActiveAt = now;
-        if (state === 'paused') localList[idx].pausedAt = now;
-      } else {
-        // 最高手数を下回っている場合でも、この端末が停止/断念したならstatusは更新
-        if (state !== 'running') {
+    // まだ回文数になっていない挑戦
+    // すでに誰かが確認済み（リクレル数でない）ならランキングに乗せない
+    if (localResolved.includes(seed)) {
+      localList = localList.filter(item => item.seed !== seed);
+    } else {
+      const idx = localList.findIndex(item => item.seed === seed);
+      if (idx >= 0) {
+        if (currentStep >= localList[idx].steps) {
+          localList[idx].steps = currentStep;
+          localList[idx].digits = digits;
+          localList[idx].status = state;
+          localList[idx].userName = currentUserName;
+          if (state === 'running') localList[idx].lastActiveAt = now;
+          if (state === 'paused') localList[idx].pausedAt = now;
+        } else if (state !== 'running') {
           localList[idx].status = state;
         }
+      } else {
+        // 10手で回文になる数でも、5手で諦めたらその状態でランキングに乗る！
+        localList.push({
+          seed,
+          userName: currentUserName,
+          steps: currentStep,
+          digits,
+          status: state,
+          lastActiveAt: state === 'running' ? now : 0,
+          pausedAt: state === 'paused' ? now : 0
+        });
       }
-    } else {
-      localList.push({
-        seed,
-        userName: currentUserName,
-        steps: currentStep,
-        digits,
-        status: state,
-        lastActiveAt: state === 'running' ? now : 0,
-        pausedAt: state === 'paused' ? now : 0
-      });
+      localList.sort((a, b) => b.steps - a.steps);
     }
-    localList.sort((a, b) => b.steps - a.steps);
   }
   saveLocalRanking(localList);
   renderRankingTable(localList);
@@ -450,16 +488,24 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
 
   try {
     let remoteList = [];
+    let remoteResolved = [];
     try {
       const getRes = await fetch(SHARED_API_URL);
       if (getRes.ok) {
         const json = await getRes.json();
         remoteList = json.data && Array.isArray(json.data.list) ? json.data.list : [];
+        remoteResolved = json.data && Array.isArray(json.data.resolved) ? json.data.resolved : [];
       }
     } catch (_) {}
 
-    let merged = mergeRankings(remoteList, localList);
-    if (found) {
+    let allResolved = Array.from(new Set([...remoteResolved, ...localResolved]));
+    if (found && !allResolved.includes(seed)) {
+      allResolved.push(seed);
+    }
+    saveLocalResolved(allResolved);
+
+    let merged = mergeRankings(remoteList, localList, allResolved);
+    if (found || allResolved.includes(seed)) {
       merged = merged.filter(item => item.seed !== seed);
     } else {
       const mIdx = merged.findIndex(i => i.seed === seed);
@@ -483,7 +529,10 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
       keepalive: true,
       body: JSON.stringify({
         name: 'lychrel_shared_ranking',
-        data: { list: merged }
+        data: {
+          list: merged,
+          resolved: allResolved
+        }
       })
     });
   } catch (e) {

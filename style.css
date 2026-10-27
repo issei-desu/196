@@ -282,11 +282,24 @@ input[type="text"]:focus {
 }
 
 /* 履歴 */
-.history-header {
+.history-section summary.history-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+  list-style: none;
+}
+
+.history-section summary.history-header::-webkit-details-marker {
+  display: none;
+}
+
+.history-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .history-header h2 {
@@ -300,12 +313,30 @@ input[type="text"]:focus {
   color: var(--text-muted);
 }
 
+.history-toggle-hint::after {
+  content: '▼ 閉じる';
+  font-size: 0.75rem;
+  color: var(--text-sub);
+}
+
+.history-section:not([open]) .history-toggle-hint::after {
+  content: '▶ 開く';
+}
+
+.history-section summary.history-header:hover h2,
+.history-section summary.history-header:hover .history-toggle-hint::after {
+  color: var(--accent);
+}
+
 .history-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
   max-height: 360px;
   overflow-y: auto;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed #000000;
 }
 
 .history-item {

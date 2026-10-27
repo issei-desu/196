@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>リクレル数問題 (Lychrel Numbers)</title>
   <meta name="color-scheme" content="light">
-  <link rel="stylesheet" href="style.css?v=6">
+  <link rel="stylesheet" href="style.css?v=7">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
@@ -59,13 +59,16 @@
       </details>
     </section>
 
-    <section class="card history-section" id="historySection" style="display: none;">
-      <div class="history-header">
-        <h2>計算履歴</h2>
-        <span class="history-count">最新 <span id="historyCount">0</span> 件 (最大20件)</span>
-      </div>
+    <details open class="card history-section" id="historySection" style="display: none;">
+      <summary class="history-header">
+        <div class="history-title-wrap">
+          <h2>計算履歴</h2>
+          <span class="history-count">最新 <span id="historyCount">0</span> 件 (最大20件)</span>
+        </div>
+        <span class="history-toggle-hint"></span>
+      </summary>
       <div class="history-list" id="historyList"></div>
-    </section>
+    </details>
 
     <!-- 全端末共通のリクレル数ランキング -->
     <section class="card records-section">
@@ -102,6 +105,6 @@
     </section>
   </main>
 
-  <script src="script.js?v=12"></script>
+  <script src="script.js?v=13"></script>
 </body>
 </html>

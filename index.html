@@ -67,14 +67,11 @@
       <div class="history-list" id="historyList"></div>
     </section>
 
-    <!-- サイト内で挑戦されたリクレル数ランキング -->
+    <!-- 全端末共通のリクレル数ランキング -->
     <section class="card records-section">
       <div class="records-header">
-        <div class="records-title-row">
-          <h2>挑戦記録ランキング（未解決・リクレル数候補）</h2>
-          <button id="clearRankingBtn" class="btn-clear-ranking" title="ランキング記録を初期化">記録をクリア</button>
-        </div>
-        <p class="records-desc">このサイトで回文数に到達せず挑戦された数が、到達ステップ順に自動でランキング記録されます。</p>
+        <h2>挑戦記録ランキング（全端末共通）</h2>
+        <p class="records-desc">このサイトで回文数に到達せず挑戦された数が、全端末でリアルタイムに共有・集計されます。</p>
       </div>
 
       <div class="table-wrapper">
@@ -89,7 +86,9 @@
             </tr>
           </thead>
           <tbody id="rankingTableBody">
-            <!-- JavaScriptで動的生成 -->
+            <tr>
+              <td colspan="5" style="text-align: center; padding: 16px; color: var(--text-sub);">ランキングを読み込み中...</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -99,6 +98,6 @@
     </section>
   </main>
 
-  <script src="script.js?v=6"></script>
+  <script src="script.js?v=7"></script>
 </body>
 </html>

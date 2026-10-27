@@ -13,7 +13,6 @@ const historyList = document.getElementById('historyList');
 const historyCountEl = document.getElementById('historyCount');
 const rankingTableBody = document.getElementById('rankingTableBody');
 const emptyRankingMessage = document.getElementById('emptyRankingMessage');
-const clearRankingBtn = document.getElementById('clearRankingBtn');
 
 // 状態変数
 let currentNumber = 0n;
@@ -25,6 +24,8 @@ let timerId = null;
 let historyItemsCount = 0;
 const MAX_HISTORY_DOM = 20;
 const RANKING_STORAGE_KEY = 'lychrel_user_ranking';
+const SHARED_API_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a17e2139ea2a01';
+let isSyncingRanking = false;
 
 // 速度設定
 const speedSettings = {
@@ -239,8 +240,8 @@ speedRange.addEventListener('input', (e) => {
   }
 });
 
-// ランキング管理ロジック
-function loadRanking() {
+// 全端末共通ランキング管理ロジック
+function loadLocalRanking() {
   try {
     const raw = localStorage.getItem(RANKING_STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
@@ -249,44 +250,116 @@ function loadRanking() {
   }
 }
 
-function saveRanking(list) {
+function saveLocalRanking(list) {
   try {
     localStorage.setItem(RANKING_STORAGE_KEY, JSON.stringify(list));
   } catch (e) {
-    console.error('Failed to save ranking', e);
+    console.error('Failed to save ranking locally', e);
+  }
+}
+
+// リモートとローカルのリストをマージしてソート
+function mergeRankings(remoteList, localList) {
+  const map = new Map();
+
+  [...remoteList, ...localList].forEach(item => {
+    if (!item || !item.seed) return;
+    const existing = map.get(item.seed);
+    if (!existing || item.steps > existing.steps) {
+      map.set(item.seed, {
+        seed: item.seed,
+        steps: item.steps,
+        digits: item.digits
+      });
+    }
+  });
+
+  const merged = Array.from(map.values());
+  merged.sort((a, b) => b.steps - a.steps);
+  return merged.slice(0, 30); // 上位30件
+}
+
+// クラウドからランキングを取得
+async function fetchSharedRanking() {
+  try {
+    const res = await fetch(SHARED_API_URL);
+    if (!res.ok) throw new Error('Failed to fetch shared ranking');
+    const json = await res.json();
+    const remoteList = json.data && Array.isArray(json.data.list) ? json.data.list : [];
+    const localList = loadLocalRanking();
+    const merged = mergeRankings(remoteList, localList);
+    saveLocalRanking(merged);
+    renderRankingTable(merged);
+  } catch (err) {
+    console.warn('Using offline/cached ranking:', err);
+    renderRankingTable(loadLocalRanking());
+  }
+}
+
+// クラウドへ挑戦記録を同期
+async function syncChallengeToCloud(seed, currentStep, digits, found) {
+  if (!seed || currentStep < 1) return;
+
+  // まずローカルを即座に更新・描画
+  let localList = loadLocalRanking();
+  if (found) {
+    localList = localList.filter(item => item.seed !== seed);
+  } else {
+    const idx = localList.findIndex(item => item.seed === seed);
+    if (idx >= 0) {
+      if (currentStep > localList[idx].steps) {
+        localList[idx].steps = currentStep;
+        localList[idx].digits = digits;
+      }
+    } else {
+      localList.push({ seed, steps: currentStep, digits });
+    }
+    localList.sort((a, b) => b.steps - a.steps);
+  }
+  saveLocalRanking(localList);
+  renderRankingTable(localList);
+
+  // 同時リクエスト重複防止
+  if (isSyncingRanking) return;
+  isSyncingRanking = true;
+
+  try {
+    // 最新のリモートを取得してマージ
+    let remoteList = [];
+    try {
+      const getRes = await fetch(SHARED_API_URL);
+      if (getRes.ok) {
+        const json = await getRes.json();
+        remoteList = json.data && Array.isArray(json.data.list) ? json.data.list : [];
+      }
+    } catch (_) {}
+
+    let merged = mergeRankings(remoteList, localList);
+    if (found) {
+      merged = merged.filter(item => item.seed !== seed);
+    }
+
+    // クラウドにPUT保存
+    await fetch(SHARED_API_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'lychrel_shared_ranking',
+        data: { list: merged }
+      })
+    });
+  } catch (e) {
+    console.warn('Cloud sync error (will retry next time):', e);
+  } finally {
+    isSyncingRanking = false;
   }
 }
 
 function recordChallenge(seed, currentStep, digits, found) {
-  if (!seed || currentStep < 1) return;
-
-  let list = loadRanking();
-
-  if (found) {
-    // 回文数になった場合はリクレル数（未解決）ランキングから除外
-    list = list.filter(item => item.seed !== seed);
-  } else {
-    // 未解決の場合はランキングに追加または更新
-    const existingIndex = list.findIndex(item => item.seed === seed);
-    if (existingIndex >= 0) {
-      if (currentStep > list[existingIndex].steps) {
-        list[existingIndex].steps = currentStep;
-        list[existingIndex].digits = digits;
-      }
-    } else {
-      list.push({ seed, steps: currentStep, digits: digits });
-    }
-    // ステップ数の降順でソート
-    list.sort((a, b) => b.steps - a.steps);
-  }
-
-  saveRanking(list);
-  renderRankingTable();
+  syncChallengeToCloud(seed, currentStep, digits, found);
 }
 
-function renderRankingTable() {
-  const list = loadRanking();
-
+function renderRankingTable(list = loadLocalRanking()) {
   if (!list || list.length === 0) {
     rankingTableBody.innerHTML = '';
     emptyRankingMessage.style.display = 'block';
@@ -317,15 +390,7 @@ function renderRankingTable() {
   });
 }
 
-// 記録クリアボタン
-clearRankingBtn.addEventListener('click', () => {
-  if (confirm('この端末の挑戦記録ランキングをクリアしますか？')) {
-    localStorage.removeItem(RANKING_STORAGE_KEY);
-    renderRankingTable();
-  }
-});
-
 // 初期実行
 speedDisplay.textContent = speedSettings[speedRange.value].label;
-renderRankingTable();
+fetchSharedRanking();
 init();

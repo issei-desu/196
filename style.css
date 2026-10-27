@@ -1,16 +1,17 @@
 :root {
-  --bg-color: #0f172a;
-  --card-bg: #1e293b;
-  --card-border: #334155;
-  --text-main: #f8fafc;
+  --bg-color: #ffffff;
+  --card-bg: #ffffff;
+  --border-color: #e2e8f0;
+  --border-light: #f1f5f9;
+  --text-main: #0f172a;
+  --text-sub: #64748b;
   --text-muted: #94a3b8;
-  --accent: #38bdf8;
-  --accent-hover: #0284c7;
-  --success: #4ade80;
-  --success-bg: rgba(74, 222, 128, 0.15);
-  --warning: #fbbf24;
-  --danger: #f87171;
-  --font-family: 'Noto Sans JP', sans-serif;
+  --primary: #0f172a;
+  --primary-hover: #1e293b;
+  --accent: #2563eb;
+  --success: #15803d;
+  --success-bg: #f0fdf4;
+  --font-sans: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'Fira Code', monospace;
 }
 
@@ -23,304 +24,227 @@
 body {
   background-color: var(--bg-color);
   color: var(--text-main);
-  font-family: var(--font-family);
+  font-family: var(--font-sans);
   min-height: 100vh;
-  padding: 24px 16px;
+  padding: 40px 16px;
   line-height: 1.6;
 }
 
 .container {
-  max-width: 860px;
+  max-width: 680px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
 
-header {
+/* ヘッダー */
+.header {
   text-align: center;
-  padding-bottom: 8px;
-}
-
-header h1 {
-  font-size: 2rem;
-  font-weight: 700;
-  color: #fff;
-  background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  margin-bottom: 6px;
-}
-
-header .subtitle {
-  color: var(--text-muted);
-  font-size: 0.95rem;
-}
-
-.card {
-  background-color: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
-}
-
-/* 入力エリア */
-.input-group label {
-  display: block;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text-muted);
   margin-bottom: 8px;
 }
 
+.header h1 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: -0.02em;
+}
+
+.header .subtitle {
+  color: var(--text-sub);
+  font-size: 0.9rem;
+  margin-top: 4px;
+}
+
+/* カード共通 */
+.card {
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+/* 入力・コントロール */
 .input-row {
   display: flex;
-  gap: 12px;
+  gap: 10px;
+  margin-bottom: 16px;
 }
 
 input[type="text"] {
   flex: 1;
-  background-color: #0b1120;
-  border: 1px solid var(--card-border);
-  border-radius: 8px;
-  padding: 12px 16px;
-  color: #fff;
+  background-color: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 10px 14px;
+  color: var(--text-main);
   font-family: var(--font-mono);
-  font-size: 1.1rem;
+  font-size: 1rem;
   outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: border-color 0.15s;
 }
 
 input[type="text"]:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+  border-color: var(--primary);
 }
 
-.preset-group {
-  margin-top: 14px;
+.controls-row {
   display: flex;
-  flex-wrap: wrap;
+  justify-content: space-between;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 14px;
 }
 
-.preset-label {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  margin-right: 4px;
+.button-group {
+  display: flex;
+  gap: 10px;
 }
 
-.btn-chip {
-  background-color: #0b1120;
-  border: 1px solid var(--card-border);
-  color: var(--text-muted);
-  padding: 4px 10px;
-  border-radius: 9999px;
-  font-size: 0.85rem;
-  font-family: var(--font-mono);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-chip:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.btn-chip.highlight {
-  border-color: #f59e0b;
-  color: #f59e0b;
-  background-color: rgba(245, 158, 11, 0.1);
-}
-
-.btn-chip.highlight:hover {
-  background-color: rgba(245, 158, 11, 0.2);
-}
-
-/* ボタン */
 .btn {
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 0.95rem;
+  padding: 8px 18px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
   cursor: pointer;
-  border: none;
-  transition: all 0.2s;
+  border: 1px solid transparent;
+  transition: all 0.15s;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
 .btn-primary {
-  background-color: var(--accent);
-  color: #0b1120;
+  background-color: var(--primary);
+  color: #ffffff;
 }
 
 .btn-primary:hover {
-  background-color: var(--accent-hover);
+  background-color: var(--primary-hover);
 }
 
 .btn-primary.running {
-  background-color: var(--danger);
-  color: #fff;
+  background-color: #dc2626;
+  color: #ffffff;
 }
 
 .btn-secondary {
-  background-color: #334155;
-  color: #fff;
+  background-color: #f8fafc;
+  border-color: var(--border-color);
+  color: var(--text-main);
 }
 
 .btn-secondary:hover {
-  background-color: #475569;
+  background-color: #f1f5f9;
 }
 
 .btn-outline {
-  background-color: transparent;
-  border: 1px solid var(--accent);
-  color: var(--accent);
+  background-color: #ffffff;
+  border-color: var(--border-color);
+  color: var(--text-main);
 }
 
 .btn-outline:hover {
-  background-color: rgba(56, 189, 248, 0.1);
+  background-color: #f8fafc;
 }
 
 .btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
-}
-
-/* コントロール */
-.controls-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
-.button-group {
-  display: flex;
-  gap: 12px;
 }
 
 .speed-control {
   display: flex;
   align-items: center;
-  gap: 10px;
-  color: var(--text-muted);
-  font-size: 0.9rem;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--text-sub);
 }
 
 .speed-control input[type="range"] {
-  accent-color: var(--accent);
+  accent-color: var(--primary);
   cursor: pointer;
 }
 
 /* メトリクス */
 .metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 16px;
-  margin-bottom: 20px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 16px;
 }
 
-.metric-box {
-  background-color: #0b1120;
-  border: 1px solid var(--card-border);
-  border-radius: 8px;
-  padding: 12px 16px;
+.metric-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
-.metric-title {
-  font-size: 0.8rem;
+.metric-label {
+  font-size: 0.75rem;
   color: var(--text-muted);
 }
 
-.metric-value {
-  font-size: 1.5rem;
-  font-weight: 700;
-  font-family: var(--font-mono);
-  color: #fff;
-}
-
-.badge {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 0.85rem;
+.metric-val {
+  font-size: 1.3rem;
   font-weight: 600;
-  text-align: center;
-  width: fit-content;
+  font-family: var(--font-mono);
+  color: var(--text-main);
 }
 
-.badge-idle {
-  background-color: #334155;
-  color: #94a3b8;
+.status-text {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-top: 4px;
 }
 
-.badge-running {
-  background-color: rgba(56, 189, 248, 0.15);
+.status-idle {
+  color: var(--text-sub);
+}
+
+.status-running {
   color: var(--accent);
-  animation: pulse 1.5s infinite;
 }
 
-.badge-found {
-  background-color: var(--success-bg);
+.status-found {
   color: var(--success);
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-/* 最新の計算ボックス */
-.current-calc {
-  background-color: #0b1120;
-  border: 1px solid var(--card-border);
-  border-radius: 8px;
-  padding: 16px;
+/* 計算表示 */
+.calc-box {
+  background-color: #f8fafc;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 14px 16px;
 }
 
 .calc-label {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
+  font-weight: 600;
   color: var(--text-muted);
-  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
 }
 
-.calc-display {
+.calc-content {
   font-family: var(--font-mono);
-  font-size: 1.05rem;
+  font-size: 0.95rem;
   word-break: break-all;
   white-space: pre-wrap;
-  line-height: 1.8;
+  line-height: 1.6;
 }
 
-.calc-step-line {
+.placeholder {
   color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
 }
 
-.calc-highlight {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.calc-result {
-  color: #fff;
-  font-weight: 600;
-}
-
-.placeholder-text {
-  color: var(--text-muted);
-  font-family: var(--font-family);
-  font-size: 0.95rem;
-}
-
-/* 履歴リスト */
+/* 履歴 */
 .history-header {
   display: flex;
   justify-content: space-between;
@@ -329,79 +253,62 @@ input[type="text"]:focus {
 }
 
 .history-header h2 {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 600;
+  color: var(--text-main);
 }
 
 .history-count {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
 }
 
 .history-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-height: 380px;
+  gap: 6px;
+  max-height: 360px;
   overflow-y: auto;
-  padding-right: 4px;
-}
-
-.history-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.history-list::-webkit-scrollbar-thumb {
-  background: var(--card-border);
-  border-radius: 4px;
 }
 
 .history-item {
-  background-color: #0b1120;
-  border-left: 3px solid var(--accent);
-  border-radius: 0 6px 6px 0;
-  padding: 10px 14px;
+  background-color: #f8fafc;
+  border-left: 2px solid var(--border-color);
+  padding: 8px 12px;
   font-family: var(--font-mono);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   word-break: break-all;
 }
 
 .history-item.found {
   border-left-color: var(--success);
-  background-color: rgba(74, 222, 128, 0.05);
+  background-color: var(--success-bg);
 }
 
-.history-step-num {
-  font-size: 0.75rem;
+.history-meta {
+  font-size: 0.7rem;
   color: var(--text-muted);
-  display: block;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
-.history-formula {
+.history-calc {
   color: var(--text-main);
 }
 
-.history-formula .plus, .history-formula .equals {
-  color: var(--text-muted);
-  margin: 0 4px;
-}
-
-.history-formula .result-val {
-  color: var(--accent);
+.history-item.found .history-calc {
+  color: var(--success);
   font-weight: 600;
 }
 
-.history-item.found .result-val {
-  color: var(--success);
-}
-
-@media (max-width: 600px) {
+@media (max-width: 540px) {
   .controls-row {
     flex-direction: column;
     align-items: stretch;
   }
   .button-group {
-    flex-direction: column;
+    width: 100%;
+  }
+  .button-group .btn {
+    flex: 1;
   }
 }

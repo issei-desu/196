@@ -3,45 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>196問題シミュレーター (リクレル数チェッカー)</title>
+  <title>リクレル数問題 (Lychrel Numbers)</title>
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>196問題シミュレーター</h1>
-      <p class="subtitle">数字を反転して足す作業を、回文数になるまで繰り返すシミュレーター</p>
+  <main class="container">
+    <header class="header">
+      <h1>リクレル数問題</h1>
+      <p class="subtitle">Lychrel Numbers Simulation</p>
     </header>
 
-    <!-- 入力・プリセットセクション -->
-    <section class="card input-card">
-      <div class="input-group">
-        <label for="initialInput">開始する数字を入力:</label>
-        <div class="input-row">
-          <input type="text" id="initialInput" placeholder="例: 196, 89, 56..." value="196" autocomplete="off">
-          <button id="resetBtn" class="btn btn-secondary">リセット</button>
-        </div>
+    <section class="card input-section">
+      <div class="input-row">
+        <input type="text" id="initialInput" placeholder="自然数を入力..." value="196" autocomplete="off">
+        <button id="resetBtn" class="btn btn-secondary">リセット</button>
       </div>
 
-      <div class="preset-group">
-        <span class="preset-label">おすすめプリセット:</span>
-        <button class="btn-chip" data-val="56">56 (1回)</button>
-        <button class="btn-chip" data-val="57">57 (2回)</button>
-        <button class="btn-chip" data-val="89">89 (24回)</button>
-        <button class="btn-chip" data-val="10911">10911 (55回)</button>
-        <button class="btn-chip highlight" data-val="196">196 (未解決!?)</button>
-      </div>
-    </section>
-
-    <!-- コントロールセクション -->
-    <section class="card control-card">
       <div class="controls-row">
         <div class="button-group">
-          <button id="startStopBtn" class="btn btn-primary">自動スタート</button>
-          <button id="stepBtn" class="btn btn-outline">1ステップ進める</button>
+          <button id="startStopBtn" class="btn btn-primary">開始</button>
+          <button id="stepBtn" class="btn btn-outline">1ステップ</button>
         </div>
 
         <div class="speed-control">
@@ -51,43 +35,38 @@
       </div>
     </section>
 
-    <!-- ステータスセクション -->
-    <section class="card status-card">
+    <section class="card status-section">
       <div class="metrics">
-        <div class="metric-box">
-          <span class="metric-title">ステップ数</span>
-          <span id="stepCount" class="metric-value">0</span>
+        <div class="metric-item">
+          <span class="metric-label">ステップ数</span>
+          <span id="stepCount" class="metric-val">0</span>
         </div>
-        <div class="metric-box">
-          <span class="metric-title">現在の桁数</span>
-          <span id="digitCount" class="metric-value">3</span>
+        <div class="metric-item">
+          <span class="metric-label">現在の桁数</span>
+          <span id="digitCount" class="metric-val">3</span>
         </div>
-        <div class="metric-box">
-          <span class="metric-title">状態</span>
-          <span id="statusBadge" class="badge badge-idle">待機中</span>
+        <div class="metric-item">
+          <span class="metric-label">判定</span>
+          <span id="statusBadge" class="status-text status-idle">待機中</span>
         </div>
       </div>
 
-      <!-- 現在の最新計算 -->
-      <div class="current-calc" id="currentCalcBox">
-        <div class="calc-label">最新の計算:</div>
-        <div class="calc-display" id="currentCalcDisplay">
-          <span class="placeholder-text">開始ボタンを押すと計算が始まります</span>
+      <div class="calc-box">
+        <div class="calc-label">最新の計算</div>
+        <div id="currentCalcDisplay" class="calc-content">
+          <span class="placeholder">数字を入力して「開始」を押してください</span>
         </div>
       </div>
     </section>
 
-    <!-- 履歴・ログセクション -->
-    <section class="card history-card">
+    <section class="card history-section">
       <div class="history-header">
         <h2>計算履歴</h2>
-        <span class="history-count">表示件数: <span id="historyCount">0</span> 件</span>
+        <span class="history-count">件数: <span id="historyCount">0</span></span>
       </div>
-      <div class="history-list" id="historyList">
-        <!-- 履歴がここに追加されます -->
-      </div>
+      <div class="history-list" id="historyList"></div>
     </section>
-  </div>
+  </main>
 
   <script src="script.js"></script>
 </body>

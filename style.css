@@ -219,16 +219,47 @@ input[type="text"]:focus {
   background-color: #f8fafc;
   border: 1px solid #000000;
   border-radius: 6px;
-  padding: 14px 16px;
+  padding: 12px 16px;
+  transition: all 0.2s;
 }
 
-.calc-label {
-  font-size: 0.75rem;
+.calc-box summary.calc-label {
+  font-size: 0.8rem;
   font-weight: 600;
-  color: var(--text-muted);
+  color: var(--text-main);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  margin-bottom: 6px;
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+  list-style: none; /* デフォルトの矢印をカスタム */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* カスタム開閉矢印とヒント */
+.calc-box summary.calc-label::-webkit-details-marker {
+  display: none;
+}
+
+.calc-box summary.calc-label::after {
+  content: '▼ 閉じる';
+  font-size: 0.75rem;
+  color: var(--text-sub);
+  font-weight: 400;
+}
+
+.calc-box:not([open]) summary.calc-label::after {
+  content: '▶ 開く';
+}
+
+.calc-box summary.calc-label:hover {
+  color: var(--accent);
+}
+
+.calc-box summary.calc-label:hover::after {
+  color: var(--accent);
 }
 
 .calc-content {
@@ -237,6 +268,11 @@ input[type="text"]:focus {
   word-break: break-all;
   white-space: pre-wrap;
   line-height: 1.6;
+  margin-top: 10px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding-top: 8px;
+  border-top: 1px dashed #000000;
 }
 
 .placeholder {

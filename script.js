@@ -109,6 +109,7 @@ function init() {
   stepBtn.disabled = false;
   startStopBtn.disabled = false;
   startStopBtn.textContent = '開始';
+  stepBtn.textContent = '1ステップ';
 }
 
 // 1ステップ実行
@@ -145,6 +146,8 @@ function executeOneStep() {
     recordChallenge(initialSeed, step, nextStr.length, true, 'abandoned');
   } else if (!isRunning) {
     recordChallenge(initialSeed, step, nextStr.length, false, 'paused');
+    startStopBtn.textContent = '再開';
+    stepBtn.textContent = 'このステップで諦める';
   }
 }
 
@@ -205,6 +208,7 @@ function startAuto() {
   isRunning = true;
   startStopBtn.textContent = '一時停止';
   startStopBtn.classList.add('running');
+  stepBtn.textContent = 'このステップで諦める';
   statusBadge.className = 'status-text status-running';
   statusBadge.textContent = '探索中...';
   startLiveSync();
@@ -221,6 +225,7 @@ function stopAuto() {
   }
   startStopBtn.textContent = step > 0 ? '再開' : '開始';
   startStopBtn.classList.remove('running');
+  stepBtn.textContent = step > 0 ? 'このステップで諦める' : '1ステップ';
   if (!isPalindromeFound) {
     statusBadge.className = 'status-text status-idle';
     statusBadge.textContent = '一時停止中';
@@ -228,6 +233,16 @@ function stopAuto() {
       recordChallenge(initialSeed, step, currentNumber.toString().length, false, 'paused');
     }
   }
+}
+
+function giveUpAtCurrentStep() {
+  if (step === 0 || isPalindromeFound) return;
+  stopAuto();
+  recordChallenge(initialSeed, step, currentNumber.toString().length, false, 'abandoned');
+  statusBadge.className = 'status-text state-abandoned';
+  statusBadge.textContent = '断念';
+  startStopBtn.textContent = '開始';
+  stepBtn.textContent = '1ステップ';
 }
 
 // イベント
@@ -240,10 +255,10 @@ startStopBtn.addEventListener('click', () => {
 });
 
 stepBtn.addEventListener('click', () => {
-  if (isRunning) stopAuto();
-  executeOneStep();
-  if (!isPalindromeFound && !isRunning) {
-    startStopBtn.textContent = '再開';
+  if (isRunning || (step > 0 && !isPalindromeFound && stepBtn.textContent === 'このステップで諦める')) {
+    giveUpAtCurrentStep();
+  } else {
+    executeOneStep();
   }
 });
 

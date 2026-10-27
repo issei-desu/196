@@ -23,11 +23,11 @@ const MAX_HISTORY_DOM = 200;
 
 // 速度設定
 const speedSettings = {
-  1: { label: '低速', delay: 700, batch: 1 },
-  2: { label: 'やや遅い', delay: 350, batch: 1 },
-  3: { label: '普通', delay: 100, batch: 1 },
-  4: { label: '高速', delay: 20, batch: 1 },
-  5: { label: '超高速', delay: 0, batch: 50 },
+  1: { label: 'ゆっくり (800ms/step)', delay: 800, batch: 1 },
+  2: { label: 'やや遅い (400ms/step)', delay: 400, batch: 1 },
+  3: { label: '普通 (100ms/step)', delay: 100, batch: 1 },
+  4: { label: '高速 (20ms/step)', delay: 20, batch: 1 },
+  5: { label: '超高速 (最大速)', delay: 0, batch: 50 },
 };
 
 function reverseString(str) {
@@ -219,4 +219,5 @@ speedRange.addEventListener('input', (e) => {
 });
 
 // 初期実行
+speedDisplay.textContent = speedSettings[speedRange.value].label;
 init();

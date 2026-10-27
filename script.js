@@ -204,15 +204,42 @@ function executeOneStep() {
     const now = Date.now();
     const digits = nextStr.length;
 
-    // 開始数および途中経過のすべての数字を「功績」として登録
-    const resolvedEntries = stepHistoryNumbers.map(item => ({
-      seed: item.seed,
-      discoverer: currentUserName,
-      steps: step - item.stepAt,
-      digits: digits,
-      palindrome: nextStr,
-      resolvedAt: now
-    }));
+    // 開始数および途中経過のすべての数字、ならびにその左右反転数（例: 534に対して435）も「功績」として登録
+    const resolvedEntries = [];
+    const addedSeeds = new Set();
+
+    stepHistoryNumbers.forEach(item => {
+      const remainingSteps = step - item.stepAt;
+      const seedStr = item.seed;
+
+      if (!addedSeeds.has(seedStr)) {
+        addedSeeds.add(seedStr);
+        resolvedEntries.push({
+          seed: seedStr,
+          discoverer: currentUserName,
+          steps: remainingSteps,
+          digits: digits,
+          palindrome: nextStr,
+          resolvedAt: now
+        });
+      }
+
+      // 末尾0でなければ、左右反転させた数（例: 534のときの435）も全く同じステップで回文数になるため登録
+      if (!seedStr.endsWith('0')) {
+        const revSeed = reverseString(seedStr);
+        if (revSeed !== seedStr && !addedSeeds.has(revSeed)) {
+          addedSeeds.add(revSeed);
+          resolvedEntries.push({
+            seed: revSeed,
+            discoverer: currentUserName,
+            steps: remainingSteps,
+            digits: digits,
+            palindrome: nextStr,
+            resolvedAt: now
+          });
+        }
+      }
+    });
 
     renderLatestCalc(currentStr, reversedStr, nextStr, found, resolvedEntries);
     markHistoryAsResolved(step);
@@ -259,7 +286,7 @@ function renderLatestCalc(a, b, res, found, resolvedEntries = []) {
     achievementNote = `
       <div style="margin-top: 12px; padding: 10px 14px; border: 1.5px solid #000000; border-radius: 6px; background-color: #f0fdf4; font-size: 0.85rem; line-height: 1.6; text-align: left;">
         🎉 <strong>回文数到達！</strong><br>
-        この探索で通過した <strong>${extraCount > 0 ? `途中経過の${extraCount}個の数字も含め、` : ''}</strong>すべての数が、<strong>${escapeHtml(getUserName())}</strong> の功績として「回文数になる数」に認定・記録されました！
+        この探索の開始数だけでなく、途中経過の数字やその左右反転数（例: 534に対する435など）を含む <strong>計${resolvedEntries.length}個の数字</strong> が、<strong>${escapeHtml(getUserName())}</strong> の功績として「回文数になる数」に認定・記録されました！
       </div>
     `;
   }

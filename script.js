@@ -11,6 +11,7 @@ const statusBadge = document.getElementById('statusBadge');
 const currentCalcDisplay = document.getElementById('currentCalcDisplay');
 const historyList = document.getElementById('historyList');
 const historyCountEl = document.getElementById('historyCount');
+const historySection = document.getElementById('historySection');
 const rankingTableBody = document.getElementById('rankingTableBody');
 const emptyRankingMessage = document.getElementById('emptyRankingMessage');
 
@@ -63,6 +64,7 @@ function init() {
   isPalindromeFound = false;
   historyItemsCount = 0;
   historyList.innerHTML = '';
+  if (historySection) historySection.style.display = 'none';
 
   const numStr = currentNumber.toString();
   stepCountEl.textContent = '0';
@@ -90,6 +92,10 @@ function init() {
 // 1ステップ実行
 function executeOneStep() {
   if (isPalindromeFound) return;
+
+  if (historySection && historySection.style.display === 'none') {
+    historySection.style.display = 'block';
+  }
 
   step++;
   const currentStr = currentNumber.toString();

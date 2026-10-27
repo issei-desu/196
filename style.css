@@ -61,12 +61,6 @@ html, body {
   gap: 4px;
 }
 
-.name-label {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text-main);
-}
-
 .name-note {
   font-size: 0.75rem;
   color: var(--text-sub);

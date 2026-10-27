@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>リクレル数を見つけよう！</title>
   <meta name="color-scheme" content="light">
-  <link rel="stylesheet" href="style.css?v=9">
+  <link rel="stylesheet" href="style.css?v=10">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
@@ -15,9 +15,8 @@
     <header class="header">
       <h1>リクレル数を見つけよう！</h1>
       <div class="user-name-group">
-        <label for="userNameInput" class="name-label">名前</label>
         <p class="name-note">ランキングに表示される名前だよ！本名は避けてね！</p>
-        <input type="text" id="userNameInput" class="name-input" value="名無し" placeholder="名無し (任意)" maxlength="15" autocomplete="off">
+        <input type="text" id="userNameInput" class="name-input" value="名無し" placeholder="名無し (任意)" aria-label="ニックネーム" maxlength="15" autocomplete="off">
       </div>
     </header>
 
@@ -111,6 +110,6 @@
     </section>
   </main>
 
-  <script src="script.js?v=26"></script>
+  <script src="script.js?v=27"></script>
 </body>
 </html>

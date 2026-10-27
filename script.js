@@ -300,11 +300,18 @@ function mergeRankings(remoteList, localList) {
         lastActiveAt: item.lastActiveAt || 0
       });
     } else {
+      let chosenLastActiveAt = existing.lastActiveAt || 0;
+      if (item.steps > existing.steps) {
+        chosenLastActiveAt = item.lastActiveAt || 0;
+      } else if (item.steps === existing.steps) {
+        chosenLastActiveAt = Math.max(item.lastActiveAt || 0, existing.lastActiveAt || 0);
+      }
+
       map.set(item.seed, {
         seed: item.seed,
         steps: Math.max(item.steps, existing.steps),
         digits: item.steps > existing.steps ? item.digits : existing.digits,
-        lastActiveAt: Math.max(item.lastActiveAt || 0, existing.lastActiveAt || 0)
+        lastActiveAt: chosenLastActiveAt
       });
     }
   });
@@ -335,27 +342,34 @@ async function fetchSharedRanking() {
 async function syncChallengeToCloud(seed, currentStep, digits, found, isActive = false) {
   if (!seed || currentStep < 1) return;
 
-  const now = isActive ? Date.now() : 0;
-
-  // まずローカルを即座に更新・描画
+  // まずローカルを更新
   let localList = loadLocalRanking();
   if (found) {
     localList = localList.filter(item => item.seed !== seed);
   } else {
     const idx = localList.findIndex(item => item.seed === seed);
     if (idx >= 0) {
-      if (currentStep > localList[idx].steps) {
+      // 過去の到達ステップ数を上回っている（新記録更新中）時だけ更新・実行中化
+      if (currentStep >= localList[idx].steps) {
         localList[idx].steps = currentStep;
         localList[idx].digits = digits;
+        if (isActive) {
+          localList[idx].lastActiveAt = Date.now();
+        }
       }
-      localList[idx].lastActiveAt = now;
     } else {
-      localList.push({ seed, steps: currentStep, digits, lastActiveAt: now });
+      localList.push({ seed, steps: currentStep, digits, lastActiveAt: isActive ? Date.now() : 0 });
     }
     localList.sort((a, b) => b.steps - a.steps);
   }
   saveLocalRanking(localList);
   renderRankingTable(localList);
+
+  // 過去記録を下回っている間は無駄なクラウド通信もしない
+  const currentBest = localList.find(item => item.seed === seed);
+  if (currentBest && currentStep < currentBest.steps) {
+    return;
+  }
 
   // 同時リクエスト重複防止
   if (isSyncingRanking) return;
@@ -376,7 +390,14 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, isActive =
       merged = merged.filter(item => item.seed !== seed);
     } else {
       const mIdx = merged.findIndex(i => i.seed === seed);
-      if (mIdx >= 0) merged[mIdx].lastActiveAt = now;
+      if (mIdx >= 0) {
+        // クラウド側でも過去記録以上の場合のみ更新
+        if (currentStep >= merged[mIdx].steps) {
+          merged[mIdx].steps = currentStep;
+          merged[mIdx].digits = digits;
+          if (isActive) merged[mIdx].lastActiveAt = Date.now();
+        }
+      }
     }
 
     await fetch(SHARED_API_URL, {

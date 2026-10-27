@@ -826,7 +826,12 @@ if (downloadResolvedCsvBtn) {
         return `"${str.replace(/"/g, '""')}"`;
       };
 
-      const rows = [headers.map(escapeCsvCell).join(',')];
+      const downloadTimeStr = formatDateTime(Date.now());
+      const rows = [
+        escapeCsvCell(`${downloadTimeStr}時点`),
+        '',
+        headers.map(escapeCsvCell).join(',')
+      ];
 
       sorted.forEach(item => {
         const isObj = typeof item === 'object' && item !== null;

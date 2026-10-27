@@ -242,7 +242,6 @@ function executeOneStep() {
     });
 
     renderLatestCalc(currentStr, reversedStr, nextStr, found, resolvedEntries);
-    markHistoryAsResolved(step);
 
     recordChallenge(initialSeed, step, digits, true, 'abandoned', resolvedEntries);
   } else {
@@ -253,29 +252,6 @@ function executeOneStep() {
       stepBtn.textContent = 'このステップで諦める';
     }
   }
-}
-
-// 履歴の全アイテムに回文数到達証明バッジを付与
-function markHistoryAsResolved(totalStep) {
-  if (!historyList) return;
-  const items = historyList.querySelectorAll('.history-item');
-  items.forEach(el => {
-    const meta = el.querySelector('.history-meta');
-    const stepMatch = meta ? meta.textContent.match(/Step\s+(\d+)/) : null;
-    if (stepMatch && !meta.querySelector('.history-resolved-badge')) {
-      const stepNum = parseInt(stepMatch[1], 10);
-      const remaining = totalStep - stepNum;
-      if (remaining > 0) {
-        const badge = document.createElement('span');
-        badge.className = 'history-resolved-badge';
-        badge.style.marginLeft = '8px';
-        badge.style.color = '#15803d';
-        badge.style.fontWeight = '600';
-        badge.textContent = `✓ あと${remaining}手で回文数到達（証明済み）`;
-        meta.appendChild(badge);
-      }
-    }
-  });
 }
 
 // 最新の計算表示

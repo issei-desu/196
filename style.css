@@ -359,6 +359,57 @@ input[type="text"]:focus {
   gap: 4px;
 }
 
+.records-title-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--success);
+  background-color: var(--success-bg);
+  padding: 3px 8px;
+  border-radius: 9999px;
+  border: 1px solid var(--success);
+}
+
+.live-dot {
+  width: 6px;
+  height: 6px;
+  background-color: var(--success);
+  border-radius: 50%;
+  animation: live-blink 1.2s infinite ease-in-out;
+}
+
+@keyframes live-blink {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(0.8); }
+}
+
+.badge-active {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--success);
+  background: var(--success-bg);
+  border: 1px solid var(--success);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.badge-idle-state {
+  display: inline-block;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
 .empty-ranking-msg {
   padding: 24px;
   text-align: center;

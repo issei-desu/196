@@ -70,8 +70,11 @@
     <!-- 全端末共通のリクレル数ランキング -->
     <section class="card records-section">
       <div class="records-header">
-        <h2>挑戦記録ランキング（全端末共通）</h2>
-        <p class="records-desc">このサイトで回文数に到達せず挑戦された数が、全端末でリアルタイムに共有・集計されます。</p>
+        <div class="records-title-bar">
+          <h2>挑戦記録ランキング（全端末共通・リアルタイム）</h2>
+          <span class="live-indicator"><span class="live-dot"></span> LIVE同期中</span>
+        </div>
+        <p class="records-desc">誰かが計算を実行中の数字もリアルタイムに反映されます。緑のバッジは現在誰かが探索中の数です。</p>
       </div>
 
       <div class="table-wrapper">
@@ -80,6 +83,7 @@
             <tr>
               <th>順位</th>
               <th>開始数</th>
+              <th>状態</th>
               <th>到達ステップ数</th>
               <th>到達桁数</th>
               <th>操作</th>
@@ -87,7 +91,7 @@
           </thead>
           <tbody id="rankingTableBody">
             <tr>
-              <td colspan="5" style="text-align: center; padding: 16px; color: var(--text-sub);">ランキングを読み込み中...</td>
+              <td colspan="6" style="text-align: center; padding: 16px; color: var(--text-sub);">ランキングを読み込み中...</td>
             </tr>
           </tbody>
         </table>
@@ -98,6 +102,6 @@
     </section>
   </main>
 
-  <script src="script.js?v=9"></script>
+  <script src="script.js?v=10"></script>
 </body>
 </html>

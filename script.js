@@ -27,6 +27,8 @@ const MAX_HISTORY_DOM = 20;
 const RANKING_STORAGE_KEY = 'lychrel_user_ranking';
 const SHARED_API_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a17e2139ea2a01';
 let isSyncingRanking = false;
+let liveSyncTimer = null;
+const LIVE_ACTIVE_THRESHOLD_MS = 9000; // 9秒以内に更新があれば「実行中」
 
 // 速度設定
 const speedSettings = {
@@ -120,9 +122,9 @@ function executeOneStep() {
     statusBadge.textContent = `回文数 (${step}手)`;
     stepBtn.disabled = true;
     startStopBtn.disabled = true;
-    recordChallenge(initialSeed, step, nextStr.length, true);
-  } else if (!isRunning || step % 25 === 0) {
-    recordChallenge(initialSeed, step, nextStr.length, false);
+    recordChallenge(initialSeed, step, nextStr.length, true, false);
+  } else if (!isRunning) {
+    recordChallenge(initialSeed, step, nextStr.length, false, false);
   }
 }
 
@@ -185,11 +187,13 @@ function startAuto() {
   startStopBtn.classList.add('running');
   statusBadge.className = 'status-text status-running';
   statusBadge.textContent = '探索中...';
+  startLiveSync();
   runLoop();
 }
 
 function stopAuto() {
   isRunning = false;
+  stopLiveSync();
   if (timerId) {
     clearTimeout(timerId);
     cancelAnimationFrame(timerId);
@@ -201,7 +205,7 @@ function stopAuto() {
     statusBadge.className = 'status-text status-idle';
     statusBadge.textContent = '一時停止中';
     if (step > 0) {
-      recordChallenge(initialSeed, step, currentNumber.toString().length, false);
+      recordChallenge(initialSeed, step, currentNumber.toString().length, false, false);
     }
   }
 }
@@ -264,6 +268,23 @@ function saveLocalRanking(list) {
   }
 }
 
+// 実行中のリアルタイム同期タイマー
+function startLiveSync() {
+  if (liveSyncTimer) clearInterval(liveSyncTimer);
+  liveSyncTimer = setInterval(() => {
+    if (isRunning && !isPalindromeFound && step > 0) {
+      syncChallengeToCloud(initialSeed, step, currentNumber.toString().length, false, true);
+    }
+  }, 2500);
+}
+
+function stopLiveSync() {
+  if (liveSyncTimer) {
+    clearInterval(liveSyncTimer);
+    liveSyncTimer = null;
+  }
+}
+
 // リモートとローカルのリストをマージしてソート
 function mergeRankings(remoteList, localList) {
   const map = new Map();
@@ -271,18 +292,26 @@ function mergeRankings(remoteList, localList) {
   [...remoteList, ...localList].forEach(item => {
     if (!item || !item.seed) return;
     const existing = map.get(item.seed);
-    if (!existing || item.steps > existing.steps) {
+    if (!existing) {
       map.set(item.seed, {
         seed: item.seed,
         steps: item.steps,
-        digits: item.digits
+        digits: item.digits,
+        lastActiveAt: item.lastActiveAt || 0
+      });
+    } else {
+      map.set(item.seed, {
+        seed: item.seed,
+        steps: Math.max(item.steps, existing.steps),
+        digits: item.steps > existing.steps ? item.digits : existing.digits,
+        lastActiveAt: Math.max(item.lastActiveAt || 0, existing.lastActiveAt || 0)
       });
     }
   });
 
   const merged = Array.from(map.values());
   merged.sort((a, b) => b.steps - a.steps);
-  return merged.slice(0, 30); // 上位30件
+  return merged.slice(0, 30);
 }
 
 // クラウドからランキングを取得
@@ -303,8 +332,10 @@ async function fetchSharedRanking() {
 }
 
 // クラウドへ挑戦記録を同期
-async function syncChallengeToCloud(seed, currentStep, digits, found) {
+async function syncChallengeToCloud(seed, currentStep, digits, found, isActive = false) {
   if (!seed || currentStep < 1) return;
+
+  const now = isActive ? Date.now() : 0;
 
   // まずローカルを即座に更新・描画
   let localList = loadLocalRanking();
@@ -317,8 +348,9 @@ async function syncChallengeToCloud(seed, currentStep, digits, found) {
         localList[idx].steps = currentStep;
         localList[idx].digits = digits;
       }
+      localList[idx].lastActiveAt = now;
     } else {
-      localList.push({ seed, steps: currentStep, digits });
+      localList.push({ seed, steps: currentStep, digits, lastActiveAt: now });
     }
     localList.sort((a, b) => b.steps - a.steps);
   }
@@ -330,7 +362,6 @@ async function syncChallengeToCloud(seed, currentStep, digits, found) {
   isSyncingRanking = true;
 
   try {
-    // 最新のリモートを取得してマージ
     let remoteList = [];
     try {
       const getRes = await fetch(SHARED_API_URL);
@@ -343,9 +374,11 @@ async function syncChallengeToCloud(seed, currentStep, digits, found) {
     let merged = mergeRankings(remoteList, localList);
     if (found) {
       merged = merged.filter(item => item.seed !== seed);
+    } else {
+      const mIdx = merged.findIndex(i => i.seed === seed);
+      if (mIdx >= 0) merged[mIdx].lastActiveAt = now;
     }
 
-    // クラウドにPUT保存
     await fetch(SHARED_API_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -355,14 +388,14 @@ async function syncChallengeToCloud(seed, currentStep, digits, found) {
       })
     });
   } catch (e) {
-    console.warn('Cloud sync error (will retry next time):', e);
+    console.warn('Cloud sync error:', e);
   } finally {
     isSyncingRanking = false;
   }
 }
 
-function recordChallenge(seed, currentStep, digits, found) {
-  syncChallengeToCloud(seed, currentStep, digits, found);
+function recordChallenge(seed, currentStep, digits, found, isActive = false) {
+  syncChallengeToCloud(seed, currentStep, digits, found, isActive);
 }
 
 function renderRankingTable(list = loadLocalRanking()) {
@@ -373,11 +406,15 @@ function renderRankingTable(list = loadLocalRanking()) {
   }
 
   emptyRankingMessage.style.display = 'none';
+  const now = Date.now();
+
   rankingTableBody.innerHTML = list.map((item, index) => {
+    const isLive = item.lastActiveAt && (now - item.lastActiveAt < LIVE_ACTIVE_THRESHOLD_MS);
     return `
       <tr>
         <td><strong>${index + 1}位</strong></td>
         <td class="num-cell">${item.seed}</td>
+        <td>${isLive ? '<span class="badge-active">🟢 実行中</span>' : '<span class="badge-idle-state">停止中</span>'}</td>
         <td>${item.steps.toLocaleString()} 手</td>
         <td>${item.digits.toLocaleString()} 桁</td>
         <td><button class="btn-try" data-val="${item.seed}">試す</button></td>
@@ -385,7 +422,6 @@ function renderRankingTable(list = loadLocalRanking()) {
     `;
   }).join('');
 
-  // 「試す」ボタンのクリックイベント再設定
   rankingTableBody.querySelectorAll('.btn-try').forEach(btn => {
     btn.addEventListener('click', () => {
       const val = btn.getAttribute('data-val');
@@ -396,7 +432,8 @@ function renderRankingTable(list = loadLocalRanking()) {
   });
 }
 
-// 初期実行
+// 初期実行 & 定期自動フェッチ（3.5秒ごと）
 speedDisplay.textContent = speedSettings[speedRange.value].label;
 fetchSharedRanking();
+setInterval(fetchSharedRanking, 3500);
 init();

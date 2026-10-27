@@ -28,6 +28,19 @@ let isPalindromeFound = false;
 let timerId = null;
 let historyItemsCount = 0;
 let stepHistoryNumbers = [];
+let knownBestStepsMap = {};
+
+function updateKnownBestSteps(list) {
+  if (!Array.isArray(list)) return;
+  list.forEach(item => {
+    if (item && item.seed && typeof item.steps === 'number') {
+      const cur = knownBestStepsMap[item.seed] || 0;
+      if (item.steps > cur) {
+        knownBestStepsMap[item.seed] = item.steps;
+      }
+    }
+  });
+}
 const MAX_HISTORY_DOM = 20;
 const RANKING_STORAGE_KEY = 'lychrel_user_ranking_v2';
 const RESOLVED_STORAGE_KEY = 'lychrel_resolved_numbers_v2';
@@ -438,17 +451,6 @@ function stopAuto(sendRecord = true) {
     if (sendRecord && step > 0) {
       recordChallenge(initialSeed, step, currentNumber.toString().length, false, 'paused');
       startPausedCountdown();
-      sendDiscordWebhook({
-        title: '⏸️ 一時停止',
-        description: `「${getUserName()}」が ${initialSeed} の探索を一時停止しました（${step}手）。`,
-        color: 0x3b82f6,
-        fields: [
-          { name: '挑戦数', value: initialSeed, inline: true },
-          { name: 'プレイヤー', value: getUserName(), inline: true },
-          { name: 'ステップ数', value: `${step.toLocaleString()}手`, inline: true },
-          { name: '桁数', value: `${currentNumber.toString().length.toLocaleString()}桁`, inline: true }
-        ]
-      });
     } else {
       stopPausedCountdown();
     }
@@ -721,6 +723,7 @@ async function fetchSharedRanking() {
 
     const localList = loadLocalRanking();
     const merged = mergeRankings(remoteList, localList, allResolved);
+    updateKnownBestSteps(merged);
     saveLocalRanking(merged);
     renderRankingTable(merged);
   } catch (err) {
@@ -866,21 +869,26 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
       })
     });
 
-    // ランキング確定・更新時のDiscord通知（一時停止または断念時）
+    // ランキング確定・更新時のDiscord通知（前回の最高ステップ数を実際に上回った時のみ送信！）
     if (!found && !allResolvedSeeds.has(seed) && (state === 'abandoned' || state === 'paused')) {
-      const rankIdx = merged.findIndex(i => i.seed === seed);
-      if (rankIdx >= 0) {
+      const prevBest = knownBestStepsMap[seed] || 0;
+      if (currentStep > prevBest) {
+        knownBestStepsMap[seed] = currentStep; // 新しい記録を記憶
+        const rankIdx = merged.findIndex(i => i.seed === seed);
+        const desc = prevBest === 0
+          ? `「${currentUserName}」が数字「${seed}」で新たにランキングにランクインしました！`
+          : `「${currentUserName}」が数字「${seed}」の記録を ${prevBest.toLocaleString()}手 から ${currentStep.toLocaleString()}手 に更新しました！`;
+
         sendDiscordWebhook({
           title: '🏆 ランキング更新',
-          description: `「${currentUserName}」の記録がランキング第${rankIdx + 1}位に登録・更新されました！`,
+          description: desc,
           color: 0x7c3aed,
           fields: [
             { name: '対象の数', value: seed, inline: true },
             { name: 'プレイヤー', value: currentUserName, inline: true },
-            { name: '到達ステップ数', value: `${currentStep.toLocaleString()}手`, inline: true },
+            { name: '新記録', value: `${currentStep.toLocaleString()}手`, inline: true },
             { name: '桁数', value: `${digits.toLocaleString()}桁`, inline: true },
-            { name: '順位', value: `第${rankIdx + 1}位`, inline: true },
-            { name: '状態', value: state === 'paused' ? '一時停止' : '断念', inline: true }
+            { name: '順位', value: rankIdx >= 0 ? `第${rankIdx + 1}位` : 'ランクイン', inline: true }
           ]
         });
       }

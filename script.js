@@ -59,8 +59,8 @@ function escapeHtml(str) {
 }
 
 function getUserName() {
-  if (!userNameInput) return '匿名';
-  return userNameInput.value.trim() || '匿名';
+  if (!userNameInput) return '名無し';
+  return userNameInput.value.trim() || '名無し';
 }
 
 // 初期化・リセット
@@ -315,7 +315,7 @@ function mergeRankings(remoteList, localList) {
     if (!existing) {
       map.set(item.seed, {
         seed: item.seed,
-        userName: item.userName || '匿名',
+        userName: item.userName || '名無し',
         steps: item.steps,
         digits: item.digits,
         status: item.status || 'abandoned',
@@ -326,7 +326,7 @@ function mergeRankings(remoteList, localList) {
       let chosenLastActiveAt = existing.lastActiveAt || 0;
       let chosenPausedAt = Math.max(item.pausedAt || 0, existing.pausedAt || 0);
       let chosenStatus = existing.status || 'abandoned';
-      let chosenUserName = existing.userName || item.userName || '匿名';
+      let chosenUserName = existing.userName || item.userName || '名無し';
 
       if (item.steps > existing.steps) {
         chosenLastActiveAt = item.lastActiveAt || 0;
@@ -334,7 +334,7 @@ function mergeRankings(remoteList, localList) {
         if (item.userName) chosenUserName = item.userName;
       } else if (item.steps === existing.steps) {
         chosenLastActiveAt = Math.max(item.lastActiveAt || 0, existing.lastActiveAt || 0);
-        if (item.userName && item.userName !== '匿名') chosenUserName = item.userName;
+        if (item.userName && item.userName !== '名無し') chosenUserName = item.userName;
         if (item.status === 'running' || existing.status === 'running') {
           chosenStatus = 'running';
         } else if (item.status === 'paused' || existing.status === 'paused') {
@@ -504,7 +504,7 @@ function renderRankingTable(list = loadLocalRanking()) {
       <tr>
         <td><strong>${index + 1}位</strong></td>
         <td class="num-cell">${item.seed}</td>
-        <td>${escapeHtml(item.userName || '匿名')}</td>
+        <td>${escapeHtml(item.userName || '名無し')}</td>
         <td>${stateLabel}</td>
         <td>${item.steps.toLocaleString()} 手</td>
         <td>${item.digits.toLocaleString()} 桁</td>
@@ -527,8 +527,14 @@ function renderRankingTable(list = loadLocalRanking()) {
 if (userNameInput) {
   try {
     const savedName = localStorage.getItem(USERNAME_STORAGE_KEY);
-    if (savedName) userNameInput.value = savedName;
-  } catch (_) {}
+    if (savedName) {
+      userNameInput.value = savedName;
+    } else {
+      userNameInput.value = '名無し';
+    }
+  } catch (_) {
+    userNameInput.value = '名無し';
+  }
 
   userNameInput.addEventListener('input', (e) => {
     try {

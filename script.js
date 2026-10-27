@@ -708,7 +708,9 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
 
     const allResolvedSeeds = new Set(allResolved.map(r => (typeof r === 'object' ? r.seed : r)));
     let merged = mergeRankings(remoteList, localList, allResolved);
-    merged = merged.filter(item => !allResolvedSeeds.has(item.seed));
+    if (found || allResolvedSeeds.has(seed)) {
+      merged = merged.filter(item => !allResolvedSeeds.has(item.seed));
+    } else {
       const mIdx = merged.findIndex(i => i.seed === seed);
       if (mIdx >= 0) {
         if (currentStep >= merged[mIdx].steps) {
@@ -859,9 +861,8 @@ if (downloadResolvedCsvBtn) {
         }
       } catch (_) {}
 
-      if (!resolvedList || resolvedList.length === 0) {
-        alert('現在、回文数の達成ログはありません。');
-        return;
+      if (!resolvedList) {
+        resolvedList = [];
       }
 
       // 元の数（seed）の小さい順にソート（BigInt比較）

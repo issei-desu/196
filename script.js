@@ -264,9 +264,9 @@ function renderLatestCalc(a, b, res, found, resolvedEntries = []) {
       e => e.seed !== initSeed && e.seed !== revInitial
     ).length;
     achievementNote = `
-      <div style="margin-top: 12px; padding: 10px 14px; border: 1.5px solid #000000; border-radius: 6px; background-color: #f0fdf4; font-size: 0.85rem; line-height: 1.6; text-align: left;">
-        <strong>回文数到達！</strong><br>
-        この探索で、${escapeHtml(initSeed)}や、反転した${escapeHtml(revInitial)}、途中で経由した${intermediateCount}個の数字が、${escapeHtml(getUserName())}が発見した、リクレル数でない数、として登録したよ！
+      <div style="margin-top: 12px; padding: 10px 14px; border: 1.5px solid #000000; border-radius: 6px; background-color: #f0fdf4; font-size: 0.85rem; line-height: 1.6;">
+        <div style="text-align: center; font-weight: 700; margin-bottom: 6px;">回文数到達！</div>
+        <div style="text-align: left;">この探索で${escapeHtml(initSeed)}や反転した${escapeHtml(revInitial)}途中で経由した${intermediateCount}個の数字が${escapeHtml(getUserName())}が発見したリクレル数でない数として登録したよ！</div>
       </div>
     `;
   }

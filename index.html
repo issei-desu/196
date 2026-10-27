@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>リクレル数を見つけよう！</title>
   <meta name="color-scheme" content="light">
-  <link rel="stylesheet" href="style.css?v=11">
+  <link rel="stylesheet" href="style.css?v=12">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
@@ -113,8 +113,21 @@
         まだ記録がありません。数字を入力して探索を進めるとランキングに記録されます。
       </div>
     </section>
+
+    <!-- 回文数達成ログのダウンロードエリア -->
+    <section class="card download-section">
+      <div class="download-content">
+        <div class="download-text">
+          <span class="download-title">回文数達成ログ</span>
+          <span class="download-desc">回文数になることが確認された数字の一覧です</span>
+        </div>
+        <button id="downloadResolvedCsvBtn" class="btn btn-outline download-btn">
+          CSV (Excel) ダウンロード
+        </button>
+      </div>
+    </section>
   </main>
 
-  <script src="script.js?v=29"></script>
+  <script src="script.js?v=30"></script>
 </body>
 </html>

@@ -576,6 +576,41 @@ input[type="text"]:focus {
   border-radius: 3px;
 }
 
+/* ダウンロードセクション */
+.download-section {
+  padding: 16px 20px;
+}
+
+.download-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.download-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.download-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.download-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.download-btn {
+  font-size: 0.85rem;
+  padding: 8px 14px;
+}
+
 @media (max-width: 540px) {
   .controls-row {
     flex-direction: column;
@@ -589,5 +624,12 @@ input[type="text"]:focus {
   }
   .button-group .btn {
     flex: 1;
+  }
+  .download-content {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .download-btn {
+    width: 100%;
   }
 }

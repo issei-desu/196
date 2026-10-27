@@ -17,6 +17,7 @@ const emptyRankingMessage = document.getElementById('emptyRankingMessage');
 const userNameInput = document.getElementById('userNameInput');
 const pausedNotice = document.getElementById('pausedNotice');
 const pausedCountdownSec = document.getElementById('pausedCountdownSec');
+const downloadResolvedCsvBtn = document.getElementById('downloadResolvedCsvBtn');
 
 // 状態変数
 let currentNumber = 0n;
@@ -763,4 +764,109 @@ window.addEventListener('beforeunload', () => {
 speedDisplay.textContent = speedSettings[speedRange.value].label;
 fetchSharedRanking();
 setInterval(fetchSharedRanking, 3500);
+
+// 日時フォーマット関数 (YYYY/MM/DD HH:mm:ss)
+function formatDateTime(ts) {
+  if (!ts) return '-';
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return '-';
+  const pad = (n) => String(n).padStart(2, '0');
+  const Y = d.getFullYear();
+  const M = pad(d.getMonth() + 1);
+  const D = pad(d.getDate());
+  const h = pad(d.getHours());
+  const m = pad(d.getMinutes());
+  const s = pad(d.getSeconds());
+  return `${Y}/${M}/${D} ${h}:${m}:${s}`;
+}
+
+// 回文数達成ログのCSV (Excel対応) ダウンロード
+if (downloadResolvedCsvBtn) {
+  downloadResolvedCsvBtn.addEventListener('click', async () => {
+    try {
+      downloadResolvedCsvBtn.disabled = true;
+      downloadResolvedCsvBtn.textContent = 'ダウンロード準備中...';
+
+      // 最新のresolvedリストを取得
+      let resolvedList = loadLocalResolved();
+      try {
+        const res = await fetch(SHARED_API_URL);
+        if (res.ok) {
+          const json = await res.json();
+          const remoteResolved = json.data && Array.isArray(json.data.resolved) ? json.data.resolved : [];
+          resolvedList = mergeResolvedList(remoteResolved, resolvedList);
+          saveLocalResolved(resolvedList);
+        }
+      } catch (_) {}
+
+      if (!resolvedList || resolvedList.length === 0) {
+        alert('現在、回文数の達成ログはありません。');
+        return;
+      }
+
+      // 元の数（seed）の小さい順にソート（BigInt比較）
+      const sorted = [...resolvedList].sort((a, b) => {
+        const aSeed = typeof a === 'object' ? a.seed : a;
+        const bSeed = typeof b === 'object' ? b.seed : b;
+        try {
+          const aBig = BigInt(aSeed);
+          const bBig = BigInt(bSeed);
+          if (aBig < bBig) return -1;
+          if (aBig > bBig) return 1;
+          return 0;
+        } catch (_) {
+          return String(aSeed).localeCompare(String(bSeed));
+        }
+      });
+
+      // CSVヘッダー: 数,ステップ,桁数,日時,名前,回文数
+      const headers = ['数', 'ステップ', '桁数', '日時', '名前', '回文数'];
+      const escapeCsvCell = (val) => {
+        const str = val == null ? '' : String(val);
+        return `"${str.replace(/"/g, '""')}"`;
+      };
+
+      const rows = [headers.map(escapeCsvCell).join(',')];
+
+      sorted.forEach(item => {
+        const isObj = typeof item === 'object' && item !== null;
+        const seed = isObj ? item.seed : item;
+        const steps = isObj && item.steps != null ? item.steps : '-';
+        const digits = isObj && item.digits != null ? item.digits : '-';
+        const dateStr = isObj && item.resolvedAt ? formatDateTime(item.resolvedAt) : '-';
+        const discoverer = isObj && item.discoverer ? item.discoverer : '名無し';
+        const palindrome = isObj && item.palindrome ? item.palindrome : '-';
+
+        rows.push([
+          escapeCsvCell(seed),
+          escapeCsvCell(steps),
+          escapeCsvCell(digits),
+          escapeCsvCell(dateStr),
+          escapeCsvCell(discoverer),
+          escapeCsvCell(palindrome)
+        ].join(','));
+      });
+
+      const csvContent = rows.join('\r\n');
+      // Excelで文字化けしないよう UTF-8 BOM付き Blob を生成
+      const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+      const blob = new Blob([bom, csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `回文数達成ログ_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('CSV download error:', err);
+      alert('CSVの出力中にエラーが発生しました。');
+    } finally {
+      downloadResolvedCsvBtn.disabled = false;
+      downloadResolvedCsvBtn.textContent = 'CSV (Excel) ダウンロード';
+    }
+  });
+}
 init();

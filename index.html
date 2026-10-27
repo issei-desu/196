@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>リクレル数問題 (Lychrel Numbers)</title>
   <meta name="color-scheme" content="light">
-  <link rel="stylesheet" href="style.css?v=7">
+  <link rel="stylesheet" href="style.css?v=8">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
@@ -14,6 +14,11 @@
   <main class="container">
     <header class="header">
       <h1>リクレル数問題</h1>
+      <div class="user-name-group">
+        <label for="userNameInput" class="name-label">名前</label>
+        <p class="name-note">ランキングに表示される名前だよ！本名は避けてね！</p>
+        <input type="text" id="userNameInput" class="name-input" placeholder="ニックネーム（任意）" maxlength="15" autocomplete="off">
+      </div>
     </header>
 
     <section class="card input-section">
@@ -86,6 +91,7 @@
             <tr>
               <th>順位</th>
               <th>開始数</th>
+              <th>名前</th>
               <th>状態</th>
               <th>到達ステップ数</th>
               <th>到達桁数</th>
@@ -94,7 +100,7 @@
           </thead>
           <tbody id="rankingTableBody">
             <tr>
-              <td colspan="6" style="text-align: center; padding: 16px; color: var(--text-sub);">ランキングを読み込み中...</td>
+              <td colspan="7" style="text-align: center; padding: 16px; color: var(--text-sub);">ランキングを読み込み中...</td>
             </tr>
           </tbody>
         </table>
@@ -105,6 +111,6 @@
     </section>
   </main>
 
-  <script src="script.js?v=13"></script>
+  <script src="script.js?v=14"></script>
 </body>
 </html>

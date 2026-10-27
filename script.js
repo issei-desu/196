@@ -14,6 +14,7 @@ const historyCountEl = document.getElementById('historyCount');
 const historySection = document.getElementById('historySection');
 const rankingTableBody = document.getElementById('rankingTableBody');
 const emptyRankingMessage = document.getElementById('emptyRankingMessage');
+const userNameInput = document.getElementById('userNameInput');
 
 // 状態変数
 let currentNumber = 0n;
@@ -25,6 +26,7 @@ let timerId = null;
 let historyItemsCount = 0;
 const MAX_HISTORY_DOM = 20;
 const RANKING_STORAGE_KEY = 'lychrel_user_ranking';
+const USERNAME_STORAGE_KEY = 'lychrel_user_name';
 const SHARED_API_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a17e2139ea2a01';
 let isSyncingRanking = false;
 let liveSyncTimer = null;
@@ -45,6 +47,20 @@ function reverseString(str) {
 
 function isPalindrome(str) {
   return str === reverseString(str);
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function getUserName() {
+  if (!userNameInput) return '匿名';
+  return userNameInput.value.trim() || '匿名';
 }
 
 // 初期化・リセット
@@ -299,6 +315,7 @@ function mergeRankings(remoteList, localList) {
     if (!existing) {
       map.set(item.seed, {
         seed: item.seed,
+        userName: item.userName || '匿名',
         steps: item.steps,
         digits: item.digits,
         status: item.status || 'abandoned',
@@ -309,12 +326,15 @@ function mergeRankings(remoteList, localList) {
       let chosenLastActiveAt = existing.lastActiveAt || 0;
       let chosenPausedAt = Math.max(item.pausedAt || 0, existing.pausedAt || 0);
       let chosenStatus = existing.status || 'abandoned';
+      let chosenUserName = existing.userName || item.userName || '匿名';
 
       if (item.steps > existing.steps) {
         chosenLastActiveAt = item.lastActiveAt || 0;
         chosenStatus = item.status || existing.status;
+        if (item.userName) chosenUserName = item.userName;
       } else if (item.steps === existing.steps) {
         chosenLastActiveAt = Math.max(item.lastActiveAt || 0, existing.lastActiveAt || 0);
+        if (item.userName && item.userName !== '匿名') chosenUserName = item.userName;
         if (item.status === 'running' || existing.status === 'running') {
           chosenStatus = 'running';
         } else if (item.status === 'paused' || existing.status === 'paused') {
@@ -326,6 +346,7 @@ function mergeRankings(remoteList, localList) {
 
       map.set(item.seed, {
         seed: item.seed,
+        userName: chosenUserName,
         steps: Math.max(item.steps, existing.steps),
         digits: item.steps > existing.steps ? item.digits : existing.digits,
         status: chosenStatus,
@@ -362,6 +383,7 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
   if (!seed || currentStep < 1) return;
 
   const now = Date.now();
+  const currentUserName = getUserName();
   let localList = loadLocalRanking();
 
   if (found) {
@@ -373,6 +395,7 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
         localList[idx].steps = currentStep;
         localList[idx].digits = digits;
         localList[idx].status = state;
+        localList[idx].userName = currentUserName;
         if (state === 'running') localList[idx].lastActiveAt = now;
         if (state === 'paused') localList[idx].pausedAt = now;
       } else {
@@ -384,6 +407,7 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
     } else {
       localList.push({
         seed,
+        userName: currentUserName,
         steps: currentStep,
         digits,
         status: state,
@@ -426,6 +450,7 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
           merged[mIdx].steps = currentStep;
           merged[mIdx].digits = digits;
           merged[mIdx].status = state;
+          merged[mIdx].userName = currentUserName;
           if (state === 'running') merged[mIdx].lastActiveAt = now;
           if (state === 'paused') merged[mIdx].pausedAt = now;
         } else if (state !== 'running') {
@@ -479,6 +504,7 @@ function renderRankingTable(list = loadLocalRanking()) {
       <tr>
         <td><strong>${index + 1}位</strong></td>
         <td class="num-cell">${item.seed}</td>
+        <td>${escapeHtml(item.userName || '匿名')}</td>
         <td>${stateLabel}</td>
         <td>${item.steps.toLocaleString()} 手</td>
         <td>${item.digits.toLocaleString()} 桁</td>
@@ -494,6 +520,20 @@ function renderRankingTable(list = loadLocalRanking()) {
       init();
       initialInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
+  });
+}
+
+// ユーザー名保存ロジック
+if (userNameInput) {
+  try {
+    const savedName = localStorage.getItem(USERNAME_STORAGE_KEY);
+    if (savedName) userNameInput.value = savedName;
+  } catch (_) {}
+
+  userNameInput.addEventListener('input', (e) => {
+    try {
+      localStorage.setItem(USERNAME_STORAGE_KEY, e.target.value.trim());
+    } catch (_) {}
   });
 }
 

@@ -52,6 +52,45 @@ html, body {
   letter-spacing: -0.02em;
 }
 
+/* ユーザー名入力グループ */
+.user-name-group {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.name-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.name-note {
+  font-size: 0.75rem;
+  color: var(--text-sub);
+}
+
+.name-input {
+  width: 240px;
+  max-width: 90%;
+  background-color: #ffffff;
+  border: 1px solid #000000;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  text-align: center;
+  color: var(--text-main);
+  outline: none;
+  margin-top: 2px;
+  transition: border-color 0.15s;
+}
+
+.name-input:focus {
+  border-width: 1.5px;
+}
+
 .header .subtitle {
   color: var(--text-sub);
   font-size: 0.9rem;

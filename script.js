@@ -11,15 +11,20 @@ const statusBadge = document.getElementById('statusBadge');
 const currentCalcDisplay = document.getElementById('currentCalcDisplay');
 const historyList = document.getElementById('historyList');
 const historyCountEl = document.getElementById('historyCount');
+const rankingTableBody = document.getElementById('rankingTableBody');
+const emptyRankingMessage = document.getElementById('emptyRankingMessage');
+const clearRankingBtn = document.getElementById('clearRankingBtn');
 
 // 状態変数
 let currentNumber = 0n;
+let initialSeed = '196';
 let step = 0;
 let isRunning = false;
 let isPalindromeFound = false;
 let timerId = null;
 let historyItemsCount = 0;
 const MAX_HISTORY_DOM = 20;
+const RANKING_STORAGE_KEY = 'lychrel_user_ranking';
 
 // 速度設定
 const speedSettings = {
@@ -47,8 +52,10 @@ function init() {
     alert('半角数字を入力してください');
     initialInput.value = '196';
     currentNumber = 196n;
+    initialSeed = '196';
   } else {
     currentNumber = BigInt(rawVal);
+    initialSeed = rawVal;
   }
 
   step = 0;
@@ -106,6 +113,9 @@ function executeOneStep() {
     statusBadge.textContent = `回文数 (${step}手)`;
     stepBtn.disabled = true;
     startStopBtn.disabled = true;
+    recordChallenge(initialSeed, step, nextStr.length, true);
+  } else if (!isRunning || step % 25 === 0) {
+    recordChallenge(initialSeed, step, nextStr.length, false);
   }
 }
 
@@ -183,6 +193,9 @@ function stopAuto() {
   if (!isPalindromeFound) {
     statusBadge.className = 'status-text status-idle';
     statusBadge.textContent = '一時停止中';
+    if (step > 0) {
+      recordChallenge(initialSeed, step, currentNumber.toString().length, false);
+    }
   }
 }
 
@@ -226,16 +239,93 @@ speedRange.addEventListener('input', (e) => {
   }
 });
 
-// 挑戦記録の「試す」ボタン
-document.querySelectorAll('.btn-try').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const val = btn.getAttribute('data-val');
-    initialInput.value = val;
-    init();
-    initialInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+// ランキング管理ロジック
+function loadRanking() {
+  try {
+    const raw = localStorage.getItem(RANKING_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveRanking(list) {
+  try {
+    localStorage.setItem(RANKING_STORAGE_KEY, JSON.stringify(list));
+  } catch (e) {
+    console.error('Failed to save ranking', e);
+  }
+}
+
+function recordChallenge(seed, currentStep, digits, found) {
+  if (!seed || currentStep < 1) return;
+
+  let list = loadRanking();
+
+  if (found) {
+    // 回文数になった場合はリクレル数（未解決）ランキングから除外
+    list = list.filter(item => item.seed !== seed);
+  } else {
+    // 未解決の場合はランキングに追加または更新
+    const existingIndex = list.findIndex(item => item.seed === seed);
+    if (existingIndex >= 0) {
+      if (currentStep > list[existingIndex].steps) {
+        list[existingIndex].steps = currentStep;
+        list[existingIndex].digits = digits;
+      }
+    } else {
+      list.push({ seed, steps: currentStep, digits: digits });
+    }
+    // ステップ数の降順でソート
+    list.sort((a, b) => b.steps - a.steps);
+  }
+
+  saveRanking(list);
+  renderRankingTable();
+}
+
+function renderRankingTable() {
+  const list = loadRanking();
+
+  if (!list || list.length === 0) {
+    rankingTableBody.innerHTML = '';
+    emptyRankingMessage.style.display = 'block';
+    return;
+  }
+
+  emptyRankingMessage.style.display = 'none';
+  rankingTableBody.innerHTML = list.map((item, index) => {
+    return `
+      <tr>
+        <td><strong>${index + 1}位</strong></td>
+        <td class="num-cell">${item.seed}</td>
+        <td>${item.steps.toLocaleString()} 手</td>
+        <td>${item.digits.toLocaleString()} 桁</td>
+        <td><button class="btn-try" data-val="${item.seed}">試す</button></td>
+      </tr>
+    `;
+  }).join('');
+
+  // 「試す」ボタンのクリックイベント再設定
+  rankingTableBody.querySelectorAll('.btn-try').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = btn.getAttribute('data-val');
+      initialInput.value = val;
+      init();
+      initialInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
   });
+}
+
+// 記録クリアボタン
+clearRankingBtn.addEventListener('click', () => {
+  if (confirm('この端末の挑戦記録ランキングをクリアしますか？')) {
+    localStorage.removeItem(RANKING_STORAGE_KEY);
+    renderRankingTable();
+  }
 });
 
 // 初期実行
 speedDisplay.textContent = speedSettings[speedRange.value].label;
+renderRankingTable();
 init();

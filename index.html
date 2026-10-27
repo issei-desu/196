@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>リクレル数問題 (Lychrel Numbers)</title>
   <meta name="color-scheme" content="light">
-  <link rel="stylesheet" href="style.css?v=3">
+  <link rel="stylesheet" href="style.css?v=4">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
@@ -67,11 +67,14 @@
       <div class="history-list" id="historyList"></div>
     </section>
 
-    <!-- 主なリクレル数候補と世界記録セクション -->
+    <!-- サイト内で挑戦されたリクレル数ランキング -->
     <section class="card records-section">
       <div class="records-header">
-        <h2>主なリクレル数候補と挑戦記録</h2>
-        <p class="records-desc">世界中の研究者や計算者たちが挑んだ、回文数に到達できていない代表的な数です。</p>
+        <div class="records-title-row">
+          <h2>挑戦記録ランキング（未解決・リクレル数候補）</h2>
+          <button id="clearRankingBtn" class="btn-clear-ranking" title="ランキング記録を初期化">記録をクリア</button>
+        </div>
+        <p class="records-desc">このサイトで回文数に到達せず挑戦された数が、到達ステップ順に自動でランキング記録されます。</p>
       </div>
 
       <div class="table-wrapper">
@@ -80,65 +83,22 @@
             <tr>
               <th>順位</th>
               <th>開始数</th>
-              <th>挑戦ステップ数</th>
+              <th>到達ステップ数</th>
               <th>到達桁数</th>
-              <th>備考</th>
               <th>操作</th>
             </tr>
           </thead>
-          <tbody>
-            <tr>
-              <td>1位</td>
-              <td class="num-cell">196</td>
-              <td>10億回以上</td>
-              <td>約4億1790万桁</td>
-              <td>最小の候補 (R.Dolbeau氏ら)</td>
-              <td><button class="btn-try" data-val="196">試す</button></td>
-            </tr>
-            <tr>
-              <td>2位</td>
-              <td class="num-cell">879</td>
-              <td>数千万回以上</td>
-              <td>1000万桁以上</td>
-              <td>196とは独立した別系統のシード</td>
-              <td><button class="btn-try" data-val="879">試す</button></td>
-            </tr>
-            <tr>
-              <td>3位</td>
-              <td class="num-cell">689</td>
-              <td>数千万回以上</td>
-              <td>1000万桁以上</td>
-              <td>3桁の独立シード</td>
-              <td><button class="btn-try" data-val="689">試す</button></td>
-            </tr>
-            <tr>
-              <td>4位</td>
-              <td class="num-cell">790</td>
-              <td>1000万回以上</td>
-              <td>400万桁以上</td>
-              <td>3桁の独立シード</td>
-              <td><button class="btn-try" data-val="790">試す</button></td>
-            </tr>
-            <tr>
-              <td>5位</td>
-              <td class="num-cell">1997</td>
-              <td>1000万回以上</td>
-              <td>400万桁以上</td>
-              <td>4桁の代表的な独立シード</td>
-              <td><button class="btn-try" data-val="1997">試す</button></td>
-            </tr>
+          <tbody id="rankingTableBody">
+            <!-- JavaScriptで動的生成 -->
           </tbody>
         </table>
       </div>
-
-      <div class="records-note">
-        <strong>※参考（奇跡的に回文数に到達した最長記録）：</strong><br>
-        <code>1999291987030606810</code> は <strong>284ステップ</strong>（119桁）かけて回文数に到達した世界記録です。
-        <button class="btn-try" data-val="1999291987030606810" style="margin-left: 8px;">この数で試す</button>
+      <div id="emptyRankingMessage" class="empty-ranking-msg" style="display: none;">
+        まだ記録がありません。数字を入力して探索を進めるとランキングに記録されます。
       </div>
     </section>
   </main>
 
-  <script src="script.js?v=5"></script>
+  <script src="script.js?v=6"></script>
 </body>
 </html>

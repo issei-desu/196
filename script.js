@@ -258,11 +258,15 @@ function executeOneStep() {
 function renderLatestCalc(a, b, res, found, resolvedEntries = []) {
   let achievementNote = '';
   if (found) {
-    const extraCount = resolvedEntries.length > 1 ? resolvedEntries.length - 1 : 0;
+    const initSeed = initialSeed;
+    const revInitial = reverseString(initSeed);
+    const intermediateCount = resolvedEntries.filter(
+      e => e.seed !== initSeed && e.seed !== revInitial
+    ).length;
     achievementNote = `
       <div style="margin-top: 12px; padding: 10px 14px; border: 1.5px solid #000000; border-radius: 6px; background-color: #f0fdf4; font-size: 0.85rem; line-height: 1.6; text-align: left;">
-        🎉 <strong>回文数到達！</strong><br>
-        この探索の開始数だけでなく、途中経過の数字やその左右反転数（例: 534に対する435など）を含む <strong>計${resolvedEntries.length}個の数字</strong> が、<strong>${escapeHtml(getUserName())}</strong> の功績として「回文数になる数」に認定・記録されました！
+        <strong>回文数到達！</strong><br>
+        この探索で、${escapeHtml(initSeed)}や、反転した${escapeHtml(revInitial)}、途中で経由した${intermediateCount}個の数字が、${escapeHtml(getUserName())}が発見した、リクレル数でない数、として登録したよ！
       </div>
     `;
   }

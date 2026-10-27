@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>リクレル数を見つけよう！</title>
   <meta name="color-scheme" content="light">
-  <link rel="stylesheet" href="style.css?v=12">
+  <link rel="stylesheet" href="style.css?v=13">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
@@ -21,9 +21,11 @@
     </header>
 
     <section class="card input-section">
-      <div class="input-row">
+      <div class="input-block">
         <input type="text" id="initialInput" placeholder="自然数を入力..." value="196" autocomplete="off">
-        <button id="resetBtn" class="btn btn-secondary">リセット</button>
+        <div class="input-subrow">
+          <button id="resetBtn" class="btn btn-secondary">リセット</button>
+        </div>
       </div>
 
       <div class="controls-row">
@@ -128,6 +130,6 @@
     </section>
   </main>
 
-  <script src="script.js?v=31"></script>
+  <script src="script.js?v=32"></script>
 </body>
 </html>

@@ -27,7 +27,7 @@ const speedSettings = {
   2: { label: 'やや遅い (400ms/step)', delay: 400, batch: 1 },
   3: { label: '普通 (100ms/step)', delay: 100, batch: 1 },
   4: { label: '高速 (20ms/step)', delay: 20, batch: 1 },
-  5: { label: '超高速 (最大速)', delay: 0, batch: 50 },
+  5: { label: '超高速 (約0.3ms/step)', delay: 0, batch: 50 },
 };
 
 function reverseString(str) {

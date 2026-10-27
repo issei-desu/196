@@ -29,10 +29,17 @@ let timerId = null;
 let historyItemsCount = 0;
 let stepHistoryNumbers = [];
 const MAX_HISTORY_DOM = 20;
-const RANKING_STORAGE_KEY = 'lychrel_user_ranking';
-const RESOLVED_STORAGE_KEY = 'lychrel_resolved_numbers';
+const RANKING_STORAGE_KEY = 'lychrel_user_ranking_v2';
+const RESOLVED_STORAGE_KEY = 'lychrel_resolved_numbers_v2';
 const USERNAME_STORAGE_KEY = 'lychrel_user_name';
-const SESSION_STORAGE_KEY = 'lychrel_active_session';
+const SESSION_STORAGE_KEY = 'lychrel_active_session_v2';
+
+// 過去の古いローカルキャッシュを一掃
+try {
+  localStorage.removeItem('lychrel_user_ranking');
+  localStorage.removeItem('lychrel_resolved_numbers');
+  localStorage.removeItem('lychrel_active_session');
+} catch (_) {}
 const SHARED_API_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a17e2139ea2a01';
 let isSyncingRanking = false;
 let liveSyncTimer = null;

@@ -42,16 +42,19 @@ function updateKnownBestSteps(list) {
   });
 }
 const MAX_HISTORY_DOM = 20;
-const RANKING_STORAGE_KEY = 'lychrel_user_ranking_v2';
-const RESOLVED_STORAGE_KEY = 'lychrel_resolved_numbers_v2';
+const RANKING_STORAGE_KEY = 'lychrel_user_ranking_v3';
+const RESOLVED_STORAGE_KEY = 'lychrel_resolved_numbers_v3';
 const USERNAME_STORAGE_KEY = 'lychrel_user_name';
-const SESSION_STORAGE_KEY = 'lychrel_active_session_v2';
+const SESSION_STORAGE_KEY = 'lychrel_active_session_v3';
 
 // 過去の古いローカルキャッシュを一掃
 try {
   localStorage.removeItem('lychrel_user_ranking');
   localStorage.removeItem('lychrel_resolved_numbers');
   localStorage.removeItem('lychrel_active_session');
+  localStorage.removeItem('lychrel_user_ranking_v2');
+  localStorage.removeItem('lychrel_resolved_numbers_v2');
+  localStorage.removeItem('lychrel_active_session_v2');
 } catch (_) {}
 const SHARED_API_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a17e2139ea2a01';
 const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1564685131074248704/MyBLBiWkmXFq6paU6WmpJA-VBSWkkbRu2rLRaJrabU1fY7ss5JXDps8Bs4WKuYjNwYrz';

@@ -146,7 +146,16 @@ function executeOneStep() {
     statusBadge.textContent = `回文数 (${step}手)`;
     stepBtn.disabled = true;
     startStopBtn.disabled = true;
-    recordChallenge(initialSeed, step, nextStr.length, true, 'abandoned');
+
+    const resolvedData = {
+      seed: initialSeed,
+      discoverer: getUserName(),
+      steps: step,
+      digits: nextStr.length,
+      palindrome: nextStr,
+      resolvedAt: Date.now()
+    };
+    recordChallenge(initialSeed, step, nextStr.length, true, 'abandoned', resolvedData);
   } else if (!isRunning) {
     recordChallenge(initialSeed, step, nextStr.length, false, 'paused');
     startStopBtn.textContent = '再開';
@@ -208,6 +217,7 @@ function runLoop() {
 
 function startAuto() {
   if (isPalindromeFound) return;
+  if (checkAndDisplayResolved(initialSeed)) return;
   isRunning = true;
   startStopBtn.textContent = '一時停止';
   startStopBtn.classList.add('running');
@@ -262,6 +272,7 @@ stepBtn.addEventListener('click', () => {
   if (isRunning || (step > 0 && !isPalindromeFound && stepBtn.textContent === 'このステップで諦める')) {
     giveUpAtCurrentStep();
   } else {
+    if (checkAndDisplayResolved(initialSeed)) return;
     executeOneStep();
   }
 });
@@ -323,6 +334,57 @@ function saveLocalResolved(list) {
   } catch (e) {
     console.error('Failed to save resolved numbers locally', e);
   }
+}
+
+function findResolvedInfo(seed) {
+  const list = loadLocalResolved();
+  return list.find(item => (typeof item === 'object' ? item.seed === seed : item === seed));
+}
+
+// 解決済みリスト同士をマージ
+function mergeResolvedList(remoteResolved = [], localResolved = []) {
+  const map = new Map();
+
+  [...remoteResolved, ...localResolved].forEach(item => {
+    if (!item) return;
+    const s = typeof item === 'object' ? item.seed : item;
+    if (!s) return;
+
+    const existing = map.get(s);
+    if (!existing) {
+      map.set(s, typeof item === 'object' ? item : { seed: s, discoverer: '名無し' });
+    } else if (typeof item === 'object' && item.palindrome) {
+      map.set(s, item);
+    }
+  });
+
+  return Array.from(map.values());
+}
+
+// 発見済みメッセージの表示判定
+function checkAndDisplayResolved(seed) {
+  const resolvedInfo = findResolvedInfo(seed);
+  if (resolvedInfo) {
+    statusBadge.className = 'status-text status-found';
+    statusBadge.textContent = '発見済み';
+
+    const disc = escapeHtml(resolvedInfo.discoverer || '名無し');
+    const digits = resolvedInfo.digits ? `${resolvedInfo.digits.toLocaleString()}桁` : (resolvedInfo.palindrome ? `${resolvedInfo.palindrome.length.toLocaleString()}桁` : '');
+    const steps = resolvedInfo.steps ? `${resolvedInfo.steps.toLocaleString()}手` : '';
+    const palin = resolvedInfo.palindrome ? escapeHtml(resolvedInfo.palindrome) : '回文数';
+
+    currentCalcDisplay.innerHTML = `
+      <div style="font-weight: 600; line-height: 1.7;">この数は、<strong>${disc}</strong>が、${digits}${steps ? `（${steps}）` : ''}、<br><span style="word-break: break-all; color: var(--text-main); font-weight: 700;">${palin}</span> で回文数になることを発見しました。</div>
+    `;
+
+    const calcBox = document.querySelector('.calc-box');
+    if (calcBox) calcBox.open = true;
+
+    startStopBtn.textContent = '開始';
+    stepBtn.textContent = '1ステップ';
+    return true;
+  }
+  return false;
 }
 
 // 実行中のリアルタイム同期タイマー
@@ -410,7 +472,7 @@ async function fetchSharedRanking() {
     const remoteResolved = json.data && Array.isArray(json.data.resolved) ? json.data.resolved : [];
     const localResolved = loadLocalResolved();
 
-    const allResolved = Array.from(new Set([...remoteResolved, ...localResolved]));
+    const allResolved = mergeResolvedList(remoteResolved, localResolved);
     saveLocalResolved(allResolved);
 
     const localList = loadLocalRanking();
@@ -424,7 +486,7 @@ async function fetchSharedRanking() {
 }
 
 // クラウドへ挑戦記録を同期
-async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'abandoned') {
+async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'abandoned', resolvedData = null) {
   if (!seed || currentStep < 1) return;
 
   const now = Date.now();
@@ -434,16 +496,22 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
 
   if (found) {
     // 誰かが回文数に到達（リクレル数ではないことを確認）した！
-    if (!localResolved.includes(seed)) {
-      localResolved.push(seed);
-      saveLocalResolved(localResolved);
-    }
-    // ランキングから完全除外
+    const newEntry = resolvedData || {
+      seed: seed,
+      discoverer: currentUserName,
+      steps: currentStep,
+      digits: digits,
+      palindrome: currentNumber.toString(),
+      resolvedAt: now
+    };
+    localResolved = mergeResolvedList(localResolved, [newEntry]);
+    saveLocalResolved(localResolved);
     localList = localList.filter(item => item.seed !== seed);
   } else {
     // まだ回文数になっていない挑戦
     // すでに誰かが確認済み（リクレル数でない）ならランキングに乗せない
-    if (localResolved.includes(seed)) {
+    const isAlreadyResolved = localResolved.some(r => (typeof r === 'object' ? r.seed === seed : r === seed));
+    if (isAlreadyResolved) {
       localList = localList.filter(item => item.seed !== seed);
     } else {
       const idx = localList.findIndex(item => item.seed === seed);
@@ -498,14 +566,14 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
       }
     } catch (_) {}
 
-    let allResolved = Array.from(new Set([...remoteResolved, ...localResolved]));
-    if (found && !allResolved.includes(seed)) {
-      allResolved.push(seed);
+    let allResolved = mergeResolvedList(remoteResolved, localResolved);
+    if (found && resolvedData) {
+      allResolved = mergeResolvedList(allResolved, [resolvedData]);
     }
     saveLocalResolved(allResolved);
 
     let merged = mergeRankings(remoteList, localList, allResolved);
-    if (found || allResolved.includes(seed)) {
+    if (found || allResolved.some(r => (typeof r === 'object' ? r.seed === seed : r === seed))) {
       merged = merged.filter(item => item.seed !== seed);
     } else {
       const mIdx = merged.findIndex(i => i.seed === seed);
@@ -542,8 +610,8 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
   }
 }
 
-function recordChallenge(seed, currentStep, digits, found, state = 'abandoned') {
-  syncChallengeToCloud(seed, currentStep, digits, found, state);
+function recordChallenge(seed, currentStep, digits, found, state = 'abandoned', resolvedData = null) {
+  syncChallengeToCloud(seed, currentStep, digits, found, state, resolvedData);
 }
 
 function renderRankingTable(list = loadLocalRanking()) {

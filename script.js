@@ -19,7 +19,7 @@ let isRunning = false;
 let isPalindromeFound = false;
 let timerId = null;
 let historyItemsCount = 0;
-const MAX_HISTORY_DOM = 200;
+const MAX_HISTORY_DOM = 20;
 
 // 速度設定
 const speedSettings = {
@@ -118,9 +118,6 @@ function renderLatestCalc(a, b, res, found) {
 
 // 履歴追加
 function addHistoryItem(stepNum, a, b, res, found) {
-  historyItemsCount++;
-  historyCountEl.textContent = historyItemsCount.toLocaleString();
-
   const item = document.createElement('div');
   item.className = `history-item ${found ? 'found' : ''}`;
   item.innerHTML = `
@@ -133,6 +130,8 @@ function addHistoryItem(stepNum, a, b, res, found) {
   if (historyList.childElementCount > MAX_HISTORY_DOM) {
     historyList.removeChild(historyList.lastChild);
   }
+
+  historyCountEl.textContent = historyList.childElementCount.toLocaleString();
 }
 
 // 自動実行ループ

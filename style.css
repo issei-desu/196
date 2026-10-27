@@ -2,14 +2,14 @@
   color-scheme: light;
   --bg-color: #ffffff;
   --card-bg: #ffffff;
-  --border-color: #e2e8f0;
-  --border-light: #f1f5f9;
-  --text-main: #0f172a;
-  --text-sub: #64748b;
-  --text-muted: #94a3b8;
-  --primary: #0f172a;
-  --primary-hover: #1e293b;
-  --accent: #2563eb;
+  --border-color: #000000;
+  --border-light: #000000;
+  --text-main: #000000;
+  --text-sub: #333333;
+  --text-muted: #666666;
+  --primary: #000000;
+  --primary-hover: #333333;
+  --accent: #1d4ed8;
   --success: #15803d;
   --success-bg: #f0fdf4;
   --font-sans: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -61,7 +61,7 @@ html, body {
 /* カード共通 */
 .card {
   background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: 1.5px solid #000000;
   border-radius: 8px;
   padding: 20px;
 }
@@ -76,7 +76,7 @@ html, body {
 input[type="text"] {
   flex: 1;
   background-color: #ffffff;
-  border: 1px solid var(--border-color);
+  border: 1.5px solid #000000;
   border-radius: 6px;
   padding: 10px 14px;
   color: var(--text-main);
@@ -174,7 +174,7 @@ input[type="text"]:focus {
   grid-template-columns: repeat(3, 1fr);
   gap: 12px;
   margin-bottom: 16px;
-  border-bottom: 1px solid var(--border-light);
+  border-bottom: 1px solid #000000;
   padding-bottom: 16px;
 }
 
@@ -217,7 +217,7 @@ input[type="text"]:focus {
 /* 計算表示 */
 .calc-box {
   background-color: #f8fafc;
-  border: 1px solid var(--border-light);
+  border: 1px solid #000000;
   border-radius: 6px;
   padding: 14px 16px;
 }
@@ -274,7 +274,9 @@ input[type="text"]:focus {
 
 .history-item {
   background-color: #f8fafc;
-  border-left: 2px solid var(--border-color);
+  border: 1px solid #000000;
+  border-left: 4px solid #000000;
+  border-radius: 4px;
   padding: 8px 12px;
   font-family: var(--font-mono);
   font-size: 0.85rem;
@@ -282,7 +284,8 @@ input[type="text"]:focus {
 }
 
 .history-item.found {
-  border-left-color: var(--success);
+  border: 1px solid var(--success);
+  border-left: 4px solid var(--success);
   background-color: var(--success-bg);
 }
 

@@ -66,8 +66,79 @@
       </div>
       <div class="history-list" id="historyList"></div>
     </section>
+
+    <!-- 主なリクレル数候補と世界記録セクション -->
+    <section class="card records-section">
+      <div class="records-header">
+        <h2>主なリクレル数候補と挑戦記録</h2>
+        <p class="records-desc">世界中の研究者や計算者たちが挑んだ、回文数に到達できていない代表的な数です。</p>
+      </div>
+
+      <div class="table-wrapper">
+        <table class="records-table">
+          <thead>
+            <tr>
+              <th>順位</th>
+              <th>開始数</th>
+              <th>挑戦ステップ数</th>
+              <th>到達桁数</th>
+              <th>備考</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1位</td>
+              <td class="num-cell">196</td>
+              <td>10億回以上</td>
+              <td>約4億1790万桁</td>
+              <td>最小の候補 (R.Dolbeau氏ら)</td>
+              <td><button class="btn-try" data-val="196">試す</button></td>
+            </tr>
+            <tr>
+              <td>2位</td>
+              <td class="num-cell">879</td>
+              <td>数千万回以上</td>
+              <td>1000万桁以上</td>
+              <td>196とは独立した別系統のシード</td>
+              <td><button class="btn-try" data-val="879">試す</button></td>
+            </tr>
+            <tr>
+              <td>3位</td>
+              <td class="num-cell">689</td>
+              <td>数千万回以上</td>
+              <td>1000万桁以上</td>
+              <td>3桁の独立シード</td>
+              <td><button class="btn-try" data-val="689">試す</button></td>
+            </tr>
+            <tr>
+              <td>4位</td>
+              <td class="num-cell">790</td>
+              <td>1000万回以上</td>
+              <td>400万桁以上</td>
+              <td>3桁の独立シード</td>
+              <td><button class="btn-try" data-val="790">試す</button></td>
+            </tr>
+            <tr>
+              <td>5位</td>
+              <td class="num-cell">1997</td>
+              <td>1000万回以上</td>
+              <td>400万桁以上</td>
+              <td>4桁の代表的な独立シード</td>
+              <td><button class="btn-try" data-val="1997">試す</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="records-note">
+        <strong>※参考（奇跡的に回文数に到達した最長記録）：</strong><br>
+        <code>1999291987030606810</code> は <strong>284ステップ</strong>（119桁）かけて回文数に到達した世界記録です。
+        <button class="btn-try" data-val="1999291987030606810" style="margin-left: 8px;">この数で試す</button>
+      </div>
+    </section>
   </main>
 
-  <script src="script.js?v=4"></script>
+  <script src="script.js?v=5"></script>
 </body>
 </html>

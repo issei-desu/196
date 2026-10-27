@@ -226,6 +226,16 @@ speedRange.addEventListener('input', (e) => {
   }
 });
 
+// 挑戦記録の「試す」ボタン
+document.querySelectorAll('.btn-try').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const val = btn.getAttribute('data-val');
+    initialInput.value = val;
+    init();
+    initialInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+});
+
 // 初期実行
 speedDisplay.textContent = speedSettings[speedRange.value].label;
 init();

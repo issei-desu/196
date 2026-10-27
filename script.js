@@ -49,6 +49,10 @@ function isPalindrome(str) {
 
 // 初期化・リセット
 function init() {
+  if (step > 0 && !isPalindromeFound && initialSeed) {
+    recordChallenge(initialSeed, step, currentNumber.toString().length, false, 'abandoned');
+  }
+
   stopAuto();
 
   const rawVal = initialInput.value.trim();
@@ -122,9 +126,9 @@ function executeOneStep() {
     statusBadge.textContent = `回文数 (${step}手)`;
     stepBtn.disabled = true;
     startStopBtn.disabled = true;
-    recordChallenge(initialSeed, step, nextStr.length, true, false);
+    recordChallenge(initialSeed, step, nextStr.length, true, 'abandoned');
   } else if (!isRunning) {
-    recordChallenge(initialSeed, step, nextStr.length, false, false);
+    recordChallenge(initialSeed, step, nextStr.length, false, 'paused');
   }
 }
 
@@ -205,7 +209,7 @@ function stopAuto() {
     statusBadge.className = 'status-text status-idle';
     statusBadge.textContent = '一時停止中';
     if (step > 0) {
-      recordChallenge(initialSeed, step, currentNumber.toString().length, false, false);
+      recordChallenge(initialSeed, step, currentNumber.toString().length, false, 'paused');
     }
   }
 }
@@ -273,7 +277,7 @@ function startLiveSync() {
   if (liveSyncTimer) clearInterval(liveSyncTimer);
   liveSyncTimer = setInterval(() => {
     if (isRunning && !isPalindromeFound && step > 0) {
-      syncChallengeToCloud(initialSeed, step, currentNumber.toString().length, false, true);
+      syncChallengeToCloud(initialSeed, step, currentNumber.toString().length, false, 'running');
     }
   }, 2500);
 }
@@ -297,21 +301,36 @@ function mergeRankings(remoteList, localList) {
         seed: item.seed,
         steps: item.steps,
         digits: item.digits,
-        lastActiveAt: item.lastActiveAt || 0
+        status: item.status || 'abandoned',
+        lastActiveAt: item.lastActiveAt || 0,
+        pausedAt: item.pausedAt || 0
       });
     } else {
       let chosenLastActiveAt = existing.lastActiveAt || 0;
+      let chosenPausedAt = Math.max(item.pausedAt || 0, existing.pausedAt || 0);
+      let chosenStatus = existing.status || 'abandoned';
+
       if (item.steps > existing.steps) {
         chosenLastActiveAt = item.lastActiveAt || 0;
+        chosenStatus = item.status || existing.status;
       } else if (item.steps === existing.steps) {
         chosenLastActiveAt = Math.max(item.lastActiveAt || 0, existing.lastActiveAt || 0);
+        if (item.status === 'running' || existing.status === 'running') {
+          chosenStatus = 'running';
+        } else if (item.status === 'paused' || existing.status === 'paused') {
+          chosenStatus = 'paused';
+        } else {
+          chosenStatus = 'abandoned';
+        }
       }
 
       map.set(item.seed, {
         seed: item.seed,
         steps: Math.max(item.steps, existing.steps),
         digits: item.steps > existing.steps ? item.digits : existing.digits,
-        lastActiveAt: chosenLastActiveAt
+        status: chosenStatus,
+        lastActiveAt: chosenLastActiveAt,
+        pausedAt: chosenPausedAt
       });
     }
   });
@@ -339,35 +358,47 @@ async function fetchSharedRanking() {
 }
 
 // クラウドへ挑戦記録を同期
-async function syncChallengeToCloud(seed, currentStep, digits, found, isActive = false) {
+async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'abandoned') {
   if (!seed || currentStep < 1) return;
 
-  // まずローカルを更新
+  const now = Date.now();
   let localList = loadLocalRanking();
+
   if (found) {
     localList = localList.filter(item => item.seed !== seed);
   } else {
     const idx = localList.findIndex(item => item.seed === seed);
     if (idx >= 0) {
-      // 過去の到達ステップ数を上回っている（新記録更新中）時だけ更新・実行中化
       if (currentStep >= localList[idx].steps) {
         localList[idx].steps = currentStep;
         localList[idx].digits = digits;
-        if (isActive) {
-          localList[idx].lastActiveAt = Date.now();
+        localList[idx].status = state;
+        if (state === 'running') localList[idx].lastActiveAt = now;
+        if (state === 'paused') localList[idx].pausedAt = now;
+      } else {
+        // 最高手数を下回っている場合でも、この端末が停止/断念したならstatusは更新
+        if (state !== 'running') {
+          localList[idx].status = state;
         }
       }
     } else {
-      localList.push({ seed, steps: currentStep, digits, lastActiveAt: isActive ? Date.now() : 0 });
+      localList.push({
+        seed,
+        steps: currentStep,
+        digits,
+        status: state,
+        lastActiveAt: state === 'running' ? now : 0,
+        pausedAt: state === 'paused' ? now : 0
+      });
     }
     localList.sort((a, b) => b.steps - a.steps);
   }
   saveLocalRanking(localList);
   renderRankingTable(localList);
 
-  // 過去記録を下回っている間は無駄なクラウド通信もしない
+  // 過去記録を下回っている実行中は通信をスキップ
   const currentBest = localList.find(item => item.seed === seed);
-  if (currentBest && currentStep < currentBest.steps) {
+  if (currentBest && currentStep < currentBest.steps && state === 'running') {
     return;
   }
 
@@ -391,11 +422,14 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, isActive =
     } else {
       const mIdx = merged.findIndex(i => i.seed === seed);
       if (mIdx >= 0) {
-        // クラウド側でも過去記録以上の場合のみ更新
         if (currentStep >= merged[mIdx].steps) {
           merged[mIdx].steps = currentStep;
           merged[mIdx].digits = digits;
-          if (isActive) merged[mIdx].lastActiveAt = Date.now();
+          merged[mIdx].status = state;
+          if (state === 'running') merged[mIdx].lastActiveAt = now;
+          if (state === 'paused') merged[mIdx].pausedAt = now;
+        } else if (state !== 'running') {
+          merged[mIdx].status = state;
         }
       }
     }
@@ -415,8 +449,8 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, isActive =
   }
 }
 
-function recordChallenge(seed, currentStep, digits, found, isActive = false) {
-  syncChallengeToCloud(seed, currentStep, digits, found, isActive);
+function recordChallenge(seed, currentStep, digits, found, state = 'abandoned') {
+  syncChallengeToCloud(seed, currentStep, digits, found, state);
 }
 
 function renderRankingTable(list = loadLocalRanking()) {
@@ -430,12 +464,22 @@ function renderRankingTable(list = loadLocalRanking()) {
   const now = Date.now();
 
   rankingTableBody.innerHTML = list.map((item, index) => {
-    const isLive = item.lastActiveAt && (now - item.lastActiveAt < LIVE_ACTIVE_THRESHOLD_MS);
+    const isLive = item.status === 'running' && item.lastActiveAt && (now - item.lastActiveAt < LIVE_ACTIVE_THRESHOLD_MS);
+
+    let stateLabel = '<span class="state-abandoned">断念</span>';
+    if (isLive) {
+      stateLabel = '<span class="state-running">実行中</span>';
+    } else if (item.status === 'paused') {
+      stateLabel = '<span class="state-paused">停止中</span>';
+    } else {
+      stateLabel = '<span class="state-abandoned">断念</span>';
+    }
+
     return `
       <tr>
         <td><strong>${index + 1}位</strong></td>
         <td class="num-cell">${item.seed}</td>
-        <td>${isLive ? '<span class="badge-active">🟢 実行中</span>' : '<span class="badge-idle-state">停止中</span>'}</td>
+        <td>${stateLabel}</td>
         <td>${item.steps.toLocaleString()} 手</td>
         <td>${item.digits.toLocaleString()} 桁</td>
         <td><button class="btn-try" data-val="${item.seed}">試す</button></td>

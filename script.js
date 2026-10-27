@@ -112,7 +112,12 @@ function executeOneStep() {
 // 最新の計算表示
 function renderLatestCalc(a, b, res, found) {
   currentCalcDisplay.innerHTML = `
-    <div>Step ${step}: ${a} + ${b} = <strong>${res}</strong>${found ? ' (回文数達成)' : ''}</div>
+    <div>[Step ${step}]</div>
+    <div>${a}</div>
+    <div>+</div>
+    <div>${b}</div>
+    <div>=</div>
+    <div><strong>${res}</strong>${found ? ' (回文数達成)' : ''}</div>
   `;
 }
 

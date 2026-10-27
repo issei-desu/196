@@ -171,7 +171,8 @@ function renderLatestCalc(a, b, res, found) {
     <div>+</div>
     <div>${b}</div>
     <div>=</div>
-    <div><strong>${res}</strong>${found ? ' (回文数達成)' : ''}</div>
+    <div><strong>${res}</strong></div>
+    ${found ? '<div>(回文数達成)</div>' : ''}
   `;
 }
 

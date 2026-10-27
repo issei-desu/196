@@ -42,6 +42,63 @@ try {
 } catch (_) {}
 const SHARED_API_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a17e2139ea2a01';
 const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1564685131074248704/MyBLBiWkmXFq6paU6WmpJA-VBSWkkbRu2rLRaJrabU1fY7ss5JXDps8Bs4WKuYjNwYrz';
+
+// Discordへの通知送信共通関数
+function sendDiscordWebhook({ title, description, color, fields }) {
+  if (!DISCORD_WEBHOOK_URL) return;
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const timeStr = `${now.getFullYear()}/${pad(now.getMonth() + 1)}/${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+  // Discord Embedのfieldsはnameとvalueが必須（空文字だと400エラー）
+  const safeFields = (fields || []).map(f => ({
+    name: String(f.name || '項目'),
+    value: String(f.value != null && f.value !== '' ? f.value : '-').slice(0, 1000),
+    inline: f.inline !== false
+  }));
+  safeFields.push({ name: '日時', value: timeStr, inline: true });
+
+  fetch(DISCORD_WEBHOOK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    keepalive: true,
+    body: JSON.stringify({
+      embeds: [{
+        title: String(title || '通知'),
+        description: String(description || ''),
+        color: color || 0x1d4ed8,
+        fields: safeFields,
+        footer: { text: 'リクレル数シミュレーター (196)' }
+      }]
+    })
+  }).then(res => {
+    if (!res.ok) {
+      console.warn('Discord Webhook error status:', res.status, res.statusText);
+    }
+  }).catch((err) => console.warn('Discord webhook network error:', err));
+}
+
+// Discordへのサイトアクセス通知
+function sendDiscordAccessNotification() {
+  const SESSION_KEY = 'lychrel_discord_visit_notified';
+  try {
+    if (sessionStorage.getItem(SESSION_KEY)) return;
+    sessionStorage.setItem(SESSION_KEY, 'true');
+  } catch (_) {}
+
+  const userName = getUserName();
+  const screenInfo = `${window.innerWidth}x${window.innerHeight} (${window.innerWidth <= 768 ? 'モバイル' : 'PC'})`;
+
+  sendDiscordWebhook({
+    title: '🌐 サイトアクセス通知',
+    description: '「リクレル数を見つけよう！」にアクセスがありました！',
+    color: 0x1d4ed8,
+    fields: [
+      { name: '名前設定', value: userName || '名無し', inline: true },
+      { name: '端末/画面', value: screenInfo, inline: false }
+    ]
+  });
+}
 let isSyncingRanking = false;
 let liveSyncTimer = null;
 let isPageUnloading = false;
@@ -381,6 +438,17 @@ function stopAuto(sendRecord = true) {
     if (sendRecord && step > 0) {
       recordChallenge(initialSeed, step, currentNumber.toString().length, false, 'paused');
       startPausedCountdown();
+      sendDiscordWebhook({
+        title: '⏸️ 一時停止',
+        description: `「${getUserName()}」が ${initialSeed} の探索を一時停止しました（${step}手）。`,
+        color: 0x3b82f6,
+        fields: [
+          { name: '挑戦数', value: initialSeed, inline: true },
+          { name: 'プレイヤー', value: getUserName(), inline: true },
+          { name: 'ステップ数', value: `${step.toLocaleString()}手`, inline: true },
+          { name: '桁数', value: `${currentNumber.toString().length.toLocaleString()}桁`, inline: true }
+        ]
+      });
     } else {
       stopPausedCountdown();
     }
@@ -798,19 +866,24 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
       })
     });
 
-    if (isRankUpdated && state !== 'running') {
-      sendDiscordWebhook({
-        title: '🏆 ランキング更新',
-        description: rankDesc,
-        color: 0x7c3aed,
-        fields: [
-          { name: '対象の数', value: seed, inline: true },
-          { name: 'プレイヤー', value: currentUserName, inline: true },
-          { name: 'ステップ数', value: `${currentStep.toLocaleString()}手`, inline: true },
-          { name: '桁数', value: `${digits.toLocaleString()}桁`, inline: true },
-          { name: '状態', value: state === 'paused' ? '一時停止' : '断念', inline: true }
-        ]
-      });
+    // ランキング確定・更新時のDiscord通知（一時停止または断念時）
+    if (!found && !allResolvedSeeds.has(seed) && (state === 'abandoned' || state === 'paused')) {
+      const rankIdx = merged.findIndex(i => i.seed === seed);
+      if (rankIdx >= 0) {
+        sendDiscordWebhook({
+          title: '🏆 ランキング更新',
+          description: `「${currentUserName}」の記録がランキング第${rankIdx + 1}位に登録・更新されました！`,
+          color: 0x7c3aed,
+          fields: [
+            { name: '対象の数', value: seed, inline: true },
+            { name: 'プレイヤー', value: currentUserName, inline: true },
+            { name: '到達ステップ数', value: `${currentStep.toLocaleString()}手`, inline: true },
+            { name: '桁数', value: `${digits.toLocaleString()}桁`, inline: true },
+            { name: '順位', value: `第${rankIdx + 1}位`, inline: true },
+            { name: '状態', value: state === 'paused' ? '一時停止' : '断念', inline: true }
+          ]
+        });
+      }
     }
   } catch (e) {
     console.warn('Cloud sync error:', e);
@@ -892,7 +965,19 @@ if (userNameInput) {
 // ページ離脱・リロード時は「諦める」と同じ扱いで断念を記録
 window.addEventListener('beforeunload', () => {
   if (step > 0 && !isPalindromeFound && initialSeed) {
-    recordChallenge(initialSeed, step, currentNumber.toString().length, false, 'abandoned');
+    const curDigits = currentNumber.toString().length;
+    recordChallenge(initialSeed, step, curDigits, false, 'abandoned');
+    sendDiscordWebhook({
+      title: '⏹️ 探索断念 (ページ離脱)',
+      description: `「${getUserName()}」がページ離脱により ${initialSeed} の探索を ${step}手 で断念しました。`,
+      color: 0x4b5563,
+      fields: [
+        { name: '挑戦数', value: initialSeed, inline: true },
+        { name: 'プレイヤー', value: getUserName(), inline: true },
+        { name: '到達ステップ数', value: `${step.toLocaleString()}手`, inline: true },
+        { name: '到達桁数', value: `${curDigits.toLocaleString()}桁`, inline: true }
+      ]
+    });
   }
 });
 
@@ -1017,53 +1102,6 @@ if (downloadResolvedCsvBtn) {
       downloadResolvedCsvBtn.disabled = false;
       downloadResolvedCsvBtn.textContent = 'CSV (Excel) ダウンロード';
     }
-  });
-}
-
-// Discordへの通知送信共通関数
-function sendDiscordWebhook({ title, description, color, fields }) {
-  if (!DISCORD_WEBHOOK_URL) return;
-  const now = new Date();
-  const pad = (n) => String(n).padStart(2, '0');
-  const timeStr = `${now.getFullYear()}/${pad(now.getMonth() + 1)}/${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-
-  const allFields = [...(fields || []), { name: '日時', value: timeStr, inline: true }];
-
-  fetch(DISCORD_WEBHOOK_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    keepalive: true,
-    body: JSON.stringify({
-      embeds: [{
-        title,
-        description,
-        color: color || 0x1d4ed8,
-        fields: allFields,
-        footer: { text: 'リクレル数シミュレーター (196)' }
-      }]
-    })
-  }).catch((err) => console.warn('Discord webhook notice error:', err));
-}
-
-// Discordへのサイトアクセス通知
-function sendDiscordAccessNotification() {
-  const SESSION_KEY = 'lychrel_discord_visit_notified';
-  try {
-    if (sessionStorage.getItem(SESSION_KEY)) return;
-    sessionStorage.setItem(SESSION_KEY, 'true');
-  } catch (_) {}
-
-  const userName = getUserName();
-  const screenInfo = `${window.innerWidth}x${window.innerHeight} (${window.innerWidth <= 768 ? 'モバイル' : 'PC'})`;
-
-  sendDiscordWebhook({
-    title: '🌐 サイトアクセス通知',
-    description: '「リクレル数を見つけよう！」にアクセスがありました！',
-    color: 0x1d4ed8,
-    fields: [
-      { name: '名前設定', value: userName || '名無し', inline: true },
-      { name: '端末/画面', value: screenInfo, inline: false }
-    ]
   });
 }
 

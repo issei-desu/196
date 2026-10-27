@@ -34,6 +34,7 @@ let isSyncingRanking = false;
 let liveSyncTimer = null;
 let isPageUnloading = false;
 const LIVE_ACTIVE_THRESHOLD_MS = 9000; // 9秒以内に更新があれば「実行中」
+const PAUSED_TIMEOUT_MS = 60000; // 60秒（1分）以上経過した停止中は自動で「断念」扱い
 
 // 速度設定
 const speedSettings = {
@@ -72,7 +73,7 @@ function init() {
     recordChallenge(initialSeed, step, currentNumber.toString().length, false, 'abandoned');
   }
 
-  stopAuto();
+  stopAuto(false);
 
   const rawVal = initialInput.value.trim();
   if (!rawVal || !/^\d+$/.test(rawVal)) {
@@ -229,7 +230,7 @@ function startAuto() {
   runLoop();
 }
 
-function stopAuto() {
+function stopAuto(sendRecord = true) {
   isRunning = false;
   stopLiveSync();
   if (timerId) {
@@ -244,7 +245,7 @@ function stopAuto() {
   if (!isPalindromeFound) {
     statusBadge.className = 'status-text status-idle';
     statusBadge.textContent = '一時停止中';
-    if (step > 0) {
+    if (sendRecord && step > 0) {
       recordChallenge(initialSeed, step, currentNumber.toString().length, false, 'paused');
     }
   }
@@ -252,7 +253,7 @@ function stopAuto() {
 
 function giveUpAtCurrentStep() {
   if (step === 0 || isPalindromeFound) return;
-  stopAuto();
+  stopAuto(false);
   recordChallenge(initialSeed, step, currentNumber.toString().length, false, 'abandoned');
   statusBadge.className = 'status-text state-abandoned';
   statusBadge.textContent = '断念';
@@ -454,18 +455,17 @@ function mergeRankings(remoteList, localList, resolvedList = []) {
 
       if (item.steps > existing.steps) {
         chosenLastActiveAt = item.lastActiveAt || 0;
+        chosenPausedAt = item.pausedAt || 0;
         chosenStatus = item.status || existing.status;
         if (item.userName) chosenUserName = item.userName;
       } else if (item.steps === existing.steps) {
         chosenLastActiveAt = Math.max(item.lastActiveAt || 0, existing.lastActiveAt || 0);
+        chosenPausedAt = Math.max(item.pausedAt || 0, existing.pausedAt || 0);
         if (item.userName && item.userName !== '名無し') chosenUserName = item.userName;
-        if (item.status === 'running' || existing.status === 'running') {
-          chosenStatus = 'running';
-        } else if (item.status === 'paused' || existing.status === 'paused') {
-          chosenStatus = 'paused';
-        } else {
-          chosenStatus = 'abandoned';
-        }
+
+        const itemTime = Math.max(item.lastActiveAt || 0, item.pausedAt || 0);
+        const existingTime = Math.max(existing.lastActiveAt || 0, existing.pausedAt || 0);
+        chosenStatus = itemTime >= existingTime ? (item.status || existing.status) : existing.status;
       }
 
       map.set(item.seed, {
@@ -649,11 +649,12 @@ function renderRankingTable(list = loadLocalRanking()) {
 
   rankingTableBody.innerHTML = list.map((item, index) => {
     const isLive = item.status === 'running' && item.lastActiveAt && (now - item.lastActiveAt < LIVE_ACTIVE_THRESHOLD_MS);
+    const isRecentlyPaused = item.status === 'paused' && item.pausedAt && (now - item.pausedAt < PAUSED_TIMEOUT_MS);
 
     let stateLabel = '<span class="state-abandoned">断念</span>';
     if (isLive) {
       stateLabel = '<span class="state-running">実行中</span>';
-    } else if (item.status === 'paused') {
+    } else if (isRecentlyPaused) {
       stateLabel = '<span class="state-paused">停止中</span>';
     } else {
       stateLabel = '<span class="state-abandoned">断念</span>';

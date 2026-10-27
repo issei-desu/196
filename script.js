@@ -65,68 +65,8 @@ function getUserName() {
   return userNameInput.value.trim() || '名無し';
 }
 
-// セッション管理（リロード時の自動復帰用）
-function saveActiveSession() {
-  try {
-    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
-      seed: initialSeed,
-      currentStr: currentNumber.toString(),
-      step: step,
-      isRunning: isRunning,
-      time: Date.now()
-    }));
-  } catch (_) {}
-}
-
-function clearActiveSession() {
-  try {
-    sessionStorage.removeItem(SESSION_STORAGE_KEY);
-  } catch (_) {}
-}
-
-function loadActiveSession() {
-  try {
-    const raw = sessionStorage.getItem(SESSION_STORAGE_KEY);
-    if (!raw) return null;
-    const data = JSON.parse(raw);
-    if (Date.now() - data.time < 120000 && data.step > 0) {
-      return data;
-    }
-  } catch (_) {}
-  return null;
-}
-
 // 初期化・リセット
-function init(isInitialLoad = false) {
-  if (isInitialLoad) {
-    const session = loadActiveSession();
-    if (session) {
-      initialInput.value = session.seed;
-      initialSeed = session.seed;
-      currentNumber = BigInt(session.currentStr);
-      step = session.step;
-      isPalindromeFound = false;
-
-      stepCountEl.textContent = step.toLocaleString();
-      digitCountEl.textContent = currentNumber.toString().length.toLocaleString();
-      if (historySection) historySection.style.display = 'block';
-
-      currentCalcDisplay.innerHTML = `<span class="placeholder">リロード前の探索を復元しました (Step ${step.toLocaleString()})</span>`;
-
-      if (session.isRunning) {
-        startAuto();
-      } else {
-        startStopBtn.textContent = '再開';
-        stepBtn.textContent = 'このステップで諦める';
-        statusBadge.className = 'status-text status-idle';
-        statusBadge.textContent = '一時停止中';
-      }
-      return;
-    }
-  }
-
-  clearActiveSession();
-
+function init() {
   if (step > 0 && !isPalindromeFound && initialSeed) {
     recordChallenge(initialSeed, step, currentNumber.toString().length, false, 'abandoned');
   }
@@ -289,9 +229,6 @@ function stopAuto() {
   startStopBtn.classList.remove('running');
   stepBtn.textContent = step > 0 ? 'このステップで諦める' : '1ステップ';
 
-  // ページアンロード・リロード時は勝手に「停止中」をクラウドに送信しない
-  if (isPageUnloading) return;
-
   if (!isPalindromeFound) {
     statusBadge.className = 'status-text status-idle';
     statusBadge.textContent = '一時停止中';
@@ -303,7 +240,6 @@ function stopAuto() {
 
 function giveUpAtCurrentStep() {
   if (step === 0 || isPalindromeFound) return;
-  clearActiveSession();
   stopAuto();
   recordChallenge(initialSeed, step, currentNumber.toString().length, false, 'abandoned');
   statusBadge.className = 'status-text state-abandoned';
@@ -330,8 +266,7 @@ stepBtn.addEventListener('click', () => {
 });
 
 resetBtn.addEventListener('click', () => {
-  clearActiveSession();
-  init(false);
+  init();
 });
 
 initialInput.addEventListener('keydown', (e) => {
@@ -376,7 +311,6 @@ function startLiveSync() {
   if (liveSyncTimer) clearInterval(liveSyncTimer);
   liveSyncTimer = setInterval(() => {
     if (isRunning && !isPalindromeFound && step > 0) {
-      saveActiveSession();
       syncChallengeToCloud(initialSeed, step, currentNumber.toString().length, false, 'running');
     }
   }, 2500);
@@ -546,6 +480,7 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
     await fetch(SHARED_API_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
+      keepalive: true,
       body: JSON.stringify({
         name: 'lychrel_shared_ranking',
         data: { list: merged }
@@ -627,11 +562,10 @@ if (userNameInput) {
   });
 }
 
-// ページ離脱・リロード時の状態保護
+// ページ離脱・リロード時は「諦める」と同じ扱いで断念を記録
 window.addEventListener('beforeunload', () => {
-  isPageUnloading = true;
-  if (isRunning) {
-    saveActiveSession();
+  if (step > 0 && !isPalindromeFound && initialSeed) {
+    recordChallenge(initialSeed, step, currentNumber.toString().length, false, 'abandoned');
   }
 });
 
@@ -639,4 +573,4 @@ window.addEventListener('beforeunload', () => {
 speedDisplay.textContent = speedSettings[speedRange.value].label;
 fetchSharedRanking();
 setInterval(fetchSharedRanking, 3500);
-init(true);
+init();

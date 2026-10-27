@@ -27,6 +27,7 @@ let isRunning = false;
 let isPalindromeFound = false;
 let timerId = null;
 let historyItemsCount = 0;
+let stepHistoryNumbers = [];
 const MAX_HISTORY_DOM = 20;
 const RANKING_STORAGE_KEY = 'lychrel_user_ranking';
 const RESOLVED_STORAGE_KEY = 'lychrel_resolved_numbers';
@@ -131,6 +132,7 @@ function init() {
   step = 0;
   isPalindromeFound = false;
   historyItemsCount = 0;
+  stepHistoryNumbers = [];
   historyList.innerHTML = '';
   if (historySection) historySection.style.display = 'none';
 
@@ -169,6 +171,7 @@ function executeOneStep() {
 
   step++;
   const currentStr = currentNumber.toString();
+  stepHistoryNumbers.push({ seed: currentStr, stepAt: step - 1 });
   const reversedStr = reverseString(currentStr);
   const reversedNumber = BigInt(reversedStr);
   const nextNumber = currentNumber + reversedNumber;
@@ -176,12 +179,11 @@ function executeOneStep() {
 
   const found = isPalindrome(nextStr);
 
-  renderLatestCalc(currentStr, reversedStr, nextStr, found);
-  addHistoryItem(step, currentStr, reversedStr, nextStr, found);
-
   currentNumber = nextNumber;
   stepCountEl.textContent = step.toLocaleString();
   digitCountEl.textContent = nextStr.length.toLocaleString();
+
+  addHistoryItem(step, currentStr, reversedStr, nextStr, found);
 
   if (found) {
     isPalindromeFound = true;
@@ -191,24 +193,70 @@ function executeOneStep() {
     stepBtn.disabled = true;
     startStopBtn.disabled = true;
 
-    const resolvedData = {
-      seed: initialSeed,
-      discoverer: getUserName(),
-      steps: step,
-      digits: nextStr.length,
+    const currentUserName = getUserName();
+    const now = Date.now();
+    const digits = nextStr.length;
+
+    // 開始数および途中経過のすべての数字を「功績」として登録
+    const resolvedEntries = stepHistoryNumbers.map(item => ({
+      seed: item.seed,
+      discoverer: currentUserName,
+      steps: step - item.stepAt,
+      digits: digits,
       palindrome: nextStr,
-      resolvedAt: Date.now()
-    };
-    recordChallenge(initialSeed, step, nextStr.length, true, 'abandoned', resolvedData);
-  } else if (!isRunning) {
-    recordChallenge(initialSeed, step, nextStr.length, false, 'paused');
-    startStopBtn.textContent = '再開';
-    stepBtn.textContent = 'このステップで諦める';
+      resolvedAt: now
+    }));
+
+    renderLatestCalc(currentStr, reversedStr, nextStr, found, resolvedEntries);
+    markHistoryAsResolved(step);
+
+    recordChallenge(initialSeed, step, digits, true, 'abandoned', resolvedEntries);
+  } else {
+    renderLatestCalc(currentStr, reversedStr, nextStr, found);
+    if (!isRunning) {
+      recordChallenge(initialSeed, step, digits, false, 'paused');
+      startStopBtn.textContent = '再開';
+      stepBtn.textContent = 'このステップで諦める';
+    }
   }
 }
 
+// 履歴の全アイテムに回文数到達証明バッジを付与
+function markHistoryAsResolved(totalStep) {
+  if (!historyList) return;
+  const items = historyList.querySelectorAll('.history-item');
+  items.forEach(el => {
+    const meta = el.querySelector('.history-meta');
+    const stepMatch = meta ? meta.textContent.match(/Step\s+(\d+)/) : null;
+    if (stepMatch && !meta.querySelector('.history-resolved-badge')) {
+      const stepNum = parseInt(stepMatch[1], 10);
+      const remaining = totalStep - stepNum;
+      if (remaining > 0) {
+        const badge = document.createElement('span');
+        badge.className = 'history-resolved-badge';
+        badge.style.marginLeft = '8px';
+        badge.style.color = '#15803d';
+        badge.style.fontWeight = '600';
+        badge.textContent = `✓ あと${remaining}手で回文数到達（証明済み）`;
+        meta.appendChild(badge);
+      }
+    }
+  });
+}
+
 // 最新の計算表示
-function renderLatestCalc(a, b, res, found) {
+function renderLatestCalc(a, b, res, found, resolvedEntries = []) {
+  let achievementNote = '';
+  if (found) {
+    const extraCount = resolvedEntries.length > 1 ? resolvedEntries.length - 1 : 0;
+    achievementNote = `
+      <div style="margin-top: 12px; padding: 10px 14px; border: 1.5px solid #000000; border-radius: 6px; background-color: #f0fdf4; font-size: 0.85rem; line-height: 1.6; text-align: left;">
+        🎉 <strong>回文数到達！</strong><br>
+        この探索で通過した <strong>${extraCount > 0 ? `途中経過の${extraCount}個の数字も含め、` : ''}</strong>すべての数が、<strong>${escapeHtml(getUserName())}</strong> の功績として「回文数になる数」に認定・記録されました！
+      </div>
+    `;
+  }
+
   currentCalcDisplay.innerHTML = `
     <div>[Step ${step}]</div>
     <div>${a}</div>
@@ -217,6 +265,7 @@ function renderLatestCalc(a, b, res, found) {
     <div>=</div>
     <div><strong>${res}</strong></div>
     ${found ? '<div>(回文数達成)</div>' : ''}
+    ${achievementNote}
   `;
 }
 
@@ -427,8 +476,10 @@ function mergeResolvedList(remoteResolved = [], localResolved = []) {
     const existing = map.get(s);
     if (!existing) {
       map.set(s, typeof item === 'object' ? item : { seed: s, discoverer: '名無し' });
-    } else if (typeof item === 'object' && item.palindrome) {
-      map.set(s, item);
+    } else if (typeof item === 'object') {
+      if (!existing.steps || (item.steps && item.steps < existing.steps) || (item.palindrome && !existing.palindrome)) {
+        map.set(s, item);
+      }
     }
   });
 
@@ -569,17 +620,19 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
 
   if (found) {
     // 誰かが回文数に到達（リクレル数ではないことを確認）した！
-    const newEntry = resolvedData || {
+    const newEntries = Array.isArray(resolvedData) ? resolvedData : (resolvedData ? [resolvedData] : [{
       seed: seed,
       discoverer: currentUserName,
       steps: currentStep,
       digits: digits,
       palindrome: currentNumber.toString(),
       resolvedAt: now
-    };
-    localResolved = mergeResolvedList(localResolved, [newEntry]);
+    }]);
+    localResolved = mergeResolvedList(localResolved, newEntries);
     saveLocalResolved(localResolved);
-    localList = localList.filter(item => item.seed !== seed);
+
+    const resolvedSeeds = new Set(newEntries.map(e => (typeof e === 'object' ? e.seed : e)));
+    localList = localList.filter(item => !resolvedSeeds.has(item.seed));
   } else {
     // まだ回文数になっていない挑戦
     // すでに誰かが確認済み（リクレル数でない）ならランキングに乗せない
@@ -641,14 +694,14 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
 
     let allResolved = mergeResolvedList(remoteResolved, localResolved);
     if (found && resolvedData) {
-      allResolved = mergeResolvedList(allResolved, [resolvedData]);
+      const entries = Array.isArray(resolvedData) ? resolvedData : [resolvedData];
+      allResolved = mergeResolvedList(allResolved, entries);
     }
     saveLocalResolved(allResolved);
 
+    const allResolvedSeeds = new Set(allResolved.map(r => (typeof r === 'object' ? r.seed : r)));
     let merged = mergeRankings(remoteList, localList, allResolved);
-    if (found || allResolved.some(r => (typeof r === 'object' ? r.seed === seed : r === seed))) {
-      merged = merged.filter(item => item.seed !== seed);
-    } else {
+    merged = merged.filter(item => !allResolvedSeeds.has(item.seed));
       const mIdx = merged.findIndex(i => i.seed === seed);
       if (mIdx >= 0) {
         if (currentStep >= merged[mIdx].steps) {

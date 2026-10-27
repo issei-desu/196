@@ -41,6 +41,7 @@ try {
   localStorage.removeItem('lychrel_active_session');
 } catch (_) {}
 const SHARED_API_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a17e2139ea2a01';
+const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1564685131074248704/MyBLBiWkmXFq6paU6WmpJA-VBSWkkbRu2rLRaJrabU1fY7ss5JXDps8Bs4WKuYjNwYrz';
 let isSyncingRanking = false;
 let liveSyncTimer = null;
 let isPageUnloading = false;
@@ -942,4 +943,41 @@ if (downloadResolvedCsvBtn) {
     }
   });
 }
+
 init();
+
+// Discordへのサイトアクセス通知
+function sendDiscordAccessNotification() {
+  const SESSION_KEY = 'lychrel_discord_visit_notified';
+  try {
+    if (sessionStorage.getItem(SESSION_KEY)) return;
+    sessionStorage.setItem(SESSION_KEY, 'true');
+  } catch (_) {}
+
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const timeStr = `${now.getFullYear()}/${pad(now.getMonth() + 1)}/${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  const userName = getUserName();
+  const screenInfo = `${window.innerWidth}x${window.innerHeight} (${window.innerWidth <= 768 ? 'モバイル' : 'PC'})`;
+
+  fetch(DISCORD_WEBHOOK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    keepalive: true,
+    body: JSON.stringify({
+      embeds: [{
+        title: '🌐 サイトアクセス通知',
+        description: '「リクレル数を見つけよう！」にアクセスがありました！',
+        color: 0x1d4ed8,
+        fields: [
+          { name: '日時', value: timeStr, inline: true },
+          { name: '名前設定', value: userName || '名無し', inline: true },
+          { name: '端末/画面', value: screenInfo, inline: false }
+        ],
+        footer: { text: 'リクレル数シミュレーター (196)' }
+      }]
+    })
+  }).catch((err) => console.warn('Discord webhook notice error:', err));
+}
+
+sendDiscordAccessNotification();

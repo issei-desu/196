@@ -260,11 +260,22 @@ function giveUpAtCurrentStep() {
   stepBtn.textContent = '1ステップ';
 }
 
+// 入力欄の数字が変更されたかチェックして同期
+function checkInputChanged() {
+  const rawVal = initialInput.value.trim();
+  if (rawVal && /^\d+$/.test(rawVal) && rawVal !== initialSeed) {
+    init();
+    return true;
+  }
+  return false;
+}
+
 // イベント
 startStopBtn.addEventListener('click', () => {
   if (isRunning) {
     stopAuto();
   } else {
+    checkInputChanged();
     startAuto();
   }
 });
@@ -273,6 +284,7 @@ stepBtn.addEventListener('click', () => {
   if (isRunning || (step > 0 && !isPalindromeFound && stepBtn.textContent === 'このステップで諦める')) {
     giveUpAtCurrentStep();
   } else {
+    checkInputChanged();
     if (checkAndDisplayResolved(initialSeed)) return;
     executeOneStep();
   }
@@ -280,6 +292,16 @@ stepBtn.addEventListener('click', () => {
 
 resetBtn.addEventListener('click', () => {
   init();
+});
+
+// 入力欄を編集した瞬間に自動反映（Enterキー不要に）
+initialInput.addEventListener('input', () => {
+  if (!isRunning) {
+    const rawVal = initialInput.value.trim();
+    if (rawVal && /^\d+$/.test(rawVal) && rawVal !== initialSeed) {
+      init();
+    }
+  }
 });
 
 initialInput.addEventListener('keydown', (e) => {

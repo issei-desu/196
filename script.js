@@ -56,7 +56,7 @@ try {
   localStorage.removeItem('lychrel_resolved_numbers_v2');
   localStorage.removeItem('lychrel_active_session_v2');
 } catch (_) {}
-const SHARED_API_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a17e2139ea2a01';
+const SHARED_API_URL = 'https://kvdb.io/C73anz47CwZ5a14fmn1Rba/ranking';
 function getSharedApiUrl() {
   return `${SHARED_API_URL}?_t=${Date.now()}`;
 }
@@ -289,6 +289,7 @@ function executeOneStep() {
   const reversedNumber = BigInt(reversedStr);
   const nextNumber = currentNumber + reversedNumber;
   const nextStr = nextNumber.toString();
+  const digits = nextStr.length;
 
   const found = isPalindrome(nextStr);
 
@@ -749,8 +750,8 @@ async function fetchSharedRanking() {
     const res = await fetchWithTimeout(getSharedApiUrl(), {}, 5000);
     if (!res.ok) throw new Error('Failed to fetch shared ranking');
     const json = await res.json();
-    const remoteList = json.data && Array.isArray(json.data.list) ? json.data.list : [];
-    const remoteResolved = json.data && Array.isArray(json.data.resolved) ? json.data.resolved : [];
+    const remoteList = (json && json.data && Array.isArray(json.data.list)) ? json.data.list : (json && Array.isArray(json.list) ? json.list : []);
+    const remoteResolved = (json && json.data && Array.isArray(json.data.resolved)) ? json.data.resolved : (json && Array.isArray(json.resolved) ? json.resolved : []);
     const localResolved = loadLocalResolved();
 
     const allResolved = mergeResolvedList(remoteResolved, localResolved);
@@ -841,14 +842,14 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
       const getRes = await fetchWithTimeout(getSharedApiUrl(), {}, 5000);
       if (getRes.ok) {
         const json = await getRes.json();
-        if (json && json.data) {
-          remoteList = Array.isArray(json.data.list) ? json.data.list : [];
-          remoteResolved = Array.isArray(json.data.resolved) ? json.data.resolved : [];
+        if (json) {
+          remoteList = (json.data && Array.isArray(json.data.list)) ? json.data.list : (Array.isArray(json.list) ? json.list : []);
+          remoteResolved = (json.data && Array.isArray(json.data.resolved)) ? json.data.resolved : (Array.isArray(json.resolved) ? json.resolved : []);
         }
       }
     } catch (_) {}
 
-    // クラウドデータ取得に失敗した場合は、他人のデータを消してしまうリスクを防ぐためPUTをスキップ
+    // クラウドデータ取得に失敗した場合は、他人のデータを消してしまうリスクを防ぐためPUT/POSTをスキップ
     if (remoteList === null) {
       console.warn('クラウドデータ取得に失敗したため、上書き防止のため送信をスキップしました');
       return;
@@ -896,14 +897,11 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
     renderRankingTable(merged);
 
     await fetchWithTimeout(SHARED_API_URL, {
-      method: 'PUT',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: 'lychrel_shared_ranking',
-        data: {
-          list: merged,
-          resolved: allResolved
-        }
+        list: merged,
+        resolved: allResolved
       })
     }, 6000);
 
@@ -1092,7 +1090,7 @@ if (downloadResolvedCsvBtn) {
         const res = await fetchWithTimeout(getSharedApiUrl(), {}, 5000);
         if (res.ok) {
           const json = await res.json();
-          const remoteResolved = json.data && Array.isArray(json.data.resolved) ? json.data.resolved : [];
+          const remoteResolved = (json && json.data && Array.isArray(json.data.resolved)) ? json.data.resolved : (json && Array.isArray(json.resolved) ? json.resolved : []);
           resolvedList = mergeResolvedList(remoteResolved, resolvedList);
           saveLocalResolved(resolvedList);
         }

@@ -922,6 +922,7 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
     await fetchWithTimeout(SHARED_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      keepalive: true,
       body: JSON.stringify({
         list: merged,
         resolved: allResolved
@@ -1061,11 +1062,34 @@ if (userNameInput) {
   });
 }
 
-// ページ離脱・リロード時は「諦める」と同じ扱いで断念を記録
+// ページ離脱・リロード時は「諦める」と同じ扱いで断念を記録（keepalive で確実にクラウド同期）
 window.addEventListener('beforeunload', () => {
   if (step > 0 && !isPalindromeFound && initialSeed) {
     const curDigits = currentNumber.toString().length;
-    recordChallenge(initialSeed, step, curDigits, false, 'abandoned');
+    try {
+      const currentUserName = getUserName();
+      const localList = loadLocalRanking();
+      const myKey = `${initialSeed}___${currentDeviceId}`;
+      const idx = localList.findIndex(item => `${item.seed}___${item.deviceId || item.userName}` === myKey);
+      if (idx >= 0) {
+        localList[idx].steps = step;
+        localList[idx].digits = curDigits;
+        localList[idx].status = 'abandoned';
+        localList[idx].pausedAt = Date.now();
+      }
+      saveLocalRanking(localList);
+
+      fetch(SHARED_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        keepalive: true,
+        body: JSON.stringify({
+          list: localList,
+          resolved: loadLocalResolved()
+        })
+      }).catch(() => {});
+    } catch (_) {}
+
     sendDiscordWebhook({
       title: '⏹️ 探索断念 (ページ離脱)',
       description: `「${getUserName()}」がページ離脱により ${initialSeed} の探索を ${step}手 で断念しました。`,
@@ -1080,10 +1104,19 @@ window.addEventListener('beforeunload', () => {
   }
 });
 
-// 初期実行 & 定期自動フェッチ（3.5秒ごと）
+// 初期実行 & 定期自動フェッチ（5秒ごと）および画面復帰時即時フェッチ
 speedDisplay.textContent = speedSettings[speedRange.value].label;
 fetchSharedRanking();
-setInterval(fetchSharedRanking, 3500);
+setInterval(fetchSharedRanking, 5000);
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    fetchSharedRanking();
+  }
+});
+window.addEventListener('focus', () => {
+  fetchSharedRanking();
+});
 
 // 日時フォーマット関数 (YYYY/MM/DD HH:mm:ss)
 function formatDateTime(ts) {

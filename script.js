@@ -762,6 +762,29 @@ async function fetchSharedRanking() {
     updateKnownBestSteps(merged);
     saveLocalRanking(merged);
     renderRankingTable(merged);
+
+    // 端末のLocalStorageに未送信の記録（オフライン時や以前の通信エラー時に保存されたもの）があれば自動でクラウドへ同期
+    const hasUnsyncedLocal = localList.some(localItem => {
+      if (!localItem || !localItem.seed) return false;
+      const match = remoteList.find(r => r.seed === localItem.seed);
+      return !match || localItem.steps > match.steps;
+    });
+
+    if (hasUnsyncedLocal && !isSyncingRanking) {
+      isSyncingRanking = true;
+      try {
+        await fetchWithTimeout(SHARED_API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            list: merged,
+            resolved: allResolved
+          })
+        }, 6000);
+      } catch (_) {} finally {
+        isSyncingRanking = false;
+      }
+    }
   } catch (err) {
     console.warn('Using offline/cached ranking:', err);
     renderRankingTable(loadLocalRanking());

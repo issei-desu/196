@@ -684,20 +684,18 @@ function checkAndDisplayResolved(seed) {
   return false;
 }
 
-// リモートとローカルのリストをマージしてソート（各プレイヤー×数字ごとの最高手数を保持、解決済みの数は除外）
+// リモートとローカルのリストをマージしてソート（各数字の最高手数を1件のみ保持、解決済みの数は除外）
 function mergeRankings(remoteList = [], localList = [], resolvedList = []) {
   const resolvedSet = new Set(resolvedList.map(r => (typeof r === 'object' ? r.seed : r)));
   const map = new Map();
 
   [...remoteList, ...localList].forEach(item => {
     if (!item || !item.seed || resolvedSet.has(item.seed) || typeof item.steps !== 'number') return;
-    const uName = (item.userName || '名無し').trim();
-    const key = `${item.seed}___${uName}`;
-    const existing = map.get(key);
+    const existing = map.get(item.seed);
     if (!existing || item.steps > existing.steps) {
-      map.set(key, {
+      map.set(item.seed, {
         seed: item.seed,
-        userName: uName,
+        userName: (item.userName || '名無し').trim(),
         steps: item.steps,
         digits: item.digits || item.steps.toString().length,
         updatedAt: item.updatedAt || Date.now()
@@ -783,15 +781,14 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
     const resolvedSeeds = new Set(newEntries.map(e => (typeof e === 'object' ? e.seed : e)));
     localList = localList.filter(item => !resolvedSeeds.has(item.seed));
   } else {
-    // 探索記録の保存（各プレイヤー×数字ごとの最高記録を保持）
+    // 探索記録の保存（各数字ごとに最高手数の1件のみを保持）
     const isAlreadyResolved = localResolved.some(r => (typeof r === 'object' ? r.seed === seed : r === seed));
     if (isAlreadyResolved) {
       localList = localList.filter(item => item.seed !== seed);
     } else {
-      const myKey = `${seed}___${currentUserName.trim()}`;
-      const existing = localList.find(item => `${item.seed}___${(item.userName || '名無し').trim()}` === myKey);
+      const existing = localList.find(item => item.seed === seed);
       if (!existing || currentStep > existing.steps) {
-        localList = localList.filter(item => `${item.seed}___${(item.userName || '名無し').trim()}` !== myKey);
+        localList = localList.filter(item => item.seed !== seed);
         localList.push({
           seed,
           userName: currentUserName,
@@ -880,17 +877,15 @@ function recordChallenge(seed, currentStep, digits, found, state = 'abandoned', 
   syncChallengeToCloud(seed, currentStep, digits, found, state, resolvedData);
 }
 
-// 各プレイヤー×数字ごとに最も進んでいる記録のリストを取得
+// 各数字ごとに最も進んでいる1件のみを抽出
 function getBestRankingList(list = loadLocalRanking()) {
   if (!Array.isArray(list)) return [];
   const map = new Map();
   list.forEach(item => {
     if (!item || !item.seed || typeof item.steps !== 'number') return;
-    const uName = (item.userName || '名無し').trim();
-    const key = `${item.seed}___${uName}`;
-    const existing = map.get(key);
+    const existing = map.get(item.seed);
     if (!existing || item.steps > existing.steps) {
-      map.set(key, item);
+      map.set(item.seed, item);
     }
   });
   const sorted = Array.from(map.values());
@@ -959,10 +954,9 @@ window.addEventListener('beforeunload', () => {
     try {
       const currentUserName = getUserName();
       let localList = loadLocalRanking();
-      const myKey = `${initialSeed}___${currentUserName.trim()}`;
-      const existing = localList.find(item => `${item.seed}___${(item.userName || '名無し').trim()}` === myKey);
+      const existing = localList.find(item => item.seed === initialSeed);
       if (!existing || step > existing.steps) {
-        localList = localList.filter(item => `${item.seed}___${(item.userName || '名無し').trim()}` !== myKey);
+        localList = localList.filter(item => item.seed !== initialSeed);
         localList.push({
           seed: initialSeed,
           userName: currentUserName,

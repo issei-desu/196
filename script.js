@@ -145,10 +145,6 @@ function sendDiscordAccessNotification() {
 }
 let isSyncingRanking = false;
 let lastSyncStartTime = 0;
-let liveSyncTimer = null;
-let isPageUnloading = false;
-let lastKnownCloudData = { list: [], resolved: [], fetchedAt: 0 };
-const LIVE_ACTIVE_THRESHOLD_MS = 45000; // 45秒以内に更新があれば「実行中」（端末時計のズレや通信遅延に対応）
 const PAUSED_TIMEOUT_MS = 60000; // 60秒（1分）以上経過した停止中は自動で「断念」扱い
 let pausedCountdownTimer = null;
 let pausedStartTime = null;
@@ -466,14 +462,11 @@ function startAuto() {
     ]
   });
 
-  startLiveSync();
-  syncChallengeToCloud(initialSeed, Math.max(step, 1), currentNumber.toString().length, false, 'running');
   runLoop();
 }
 
 function stopAuto(sendRecord = true) {
   isRunning = false;
-  stopLiveSync();
   if (timerId) {
     clearTimeout(timerId);
     cancelAnimationFrame(timerId);
@@ -487,7 +480,6 @@ function stopAuto(sendRecord = true) {
     statusBadge.className = 'status-text status-idle';
     statusBadge.textContent = '一時停止中';
     if (sendRecord && step > 0) {
-      recordChallenge(initialSeed, step, currentNumber.toString().length, false, 'paused');
       startPausedCountdown();
     } else {
       stopPausedCountdown();
@@ -672,70 +664,21 @@ function checkAndDisplayResolved(seed) {
   return false;
 }
 
-// 実行中のリアルタイム同期タイマー (4.5秒間隔でAPI制限を回避)
-function startLiveSync() {
-  if (liveSyncTimer) clearInterval(liveSyncTimer);
-  liveSyncTimer = setInterval(() => {
-    if (isRunning && !isPalindromeFound && step > 0) {
-      syncChallengeToCloud(initialSeed, step, currentNumber.toString().length, false, 'running');
-    }
-  }, 4500);
-}
-
-function stopLiveSync() {
-  if (liveSyncTimer) {
-    clearInterval(liveSyncTimer);
-    liveSyncTimer = null;
-  }
-}
-
-// リモートとローカルのリストをマージしてソート（解決済みの数は除外）
+// リモートとローカルのリストをマージしてソート（各数字の最高手数を保持、解決済みの数は除外）
 function mergeRankings(remoteList = [], localList = [], resolvedList = []) {
   const resolvedSet = new Set(resolvedList.map(r => (typeof r === 'object' ? r.seed : r)));
   const map = new Map();
 
   [...remoteList, ...localList].forEach(item => {
-    // 誰かが回文数に到達（リクレル数ではないと確認）した数はランキングに乗せない！
-    if (!item || !item.seed || resolvedSet.has(item.seed)) return;
-    const devKey = item.deviceId || item.userName || 'unknown';
-    const key = `${item.seed}___${devKey}`;
-    const existing = map.get(key);
-    if (!existing) {
-      map.set(key, {
+    if (!item || !item.seed || resolvedSet.has(item.seed) || typeof item.steps !== 'number') return;
+    const existing = map.get(item.seed);
+    if (!existing || item.steps > existing.steps) {
+      map.set(item.seed, {
         seed: item.seed,
         userName: item.userName || '名無し',
-        deviceId: devKey,
         steps: item.steps,
-        digits: item.digits,
-        status: item.status || 'abandoned',
-        lastActiveAt: item.lastActiveAt || 0,
-        pausedAt: item.pausedAt || 0
-      });
-    } else {
-      let chosenLastActiveAt = Math.max(item.lastActiveAt || 0, existing.lastActiveAt || 0);
-      let chosenPausedAt = Math.max(item.pausedAt || 0, existing.pausedAt || 0);
-      let chosenStatus = existing.status || 'abandoned';
-      let chosenUserName = existing.userName || item.userName || '名無し';
-
-      if (item.steps > existing.steps) {
-        chosenStatus = item.status || existing.status;
-        if (item.userName) chosenUserName = item.userName;
-      } else if (item.steps === existing.steps) {
-        if (item.userName && item.userName !== '名無し') chosenUserName = item.userName;
-        const itemTime = Math.max(item.lastActiveAt || 0, item.pausedAt || 0);
-        const existingTime = Math.max(existing.lastActiveAt || 0, existing.pausedAt || 0);
-        chosenStatus = itemTime >= existingTime ? (item.status || existing.status) : existing.status;
-      }
-
-      map.set(key, {
-        seed: item.seed,
-        userName: chosenUserName,
-        deviceId: devKey,
-        steps: Math.max(item.steps, existing.steps),
-        digits: item.steps > existing.steps ? item.digits : existing.digits,
-        status: chosenStatus,
-        lastActiveAt: chosenLastActiveAt,
-        pausedAt: chosenPausedAt
+        digits: item.digits || item.steps.toString().length,
+        updatedAt: item.updatedAt || Date.now()
       });
     }
   });
@@ -760,12 +703,11 @@ async function fetchSharedRanking() {
 
     const localList = loadLocalRanking();
     const merged = mergeRankings(remoteList, localList, allResolved);
-    lastKnownCloudData = { list: remoteList, resolved: allResolved, fetchedAt: Date.now() };
     updateKnownBestSteps(merged);
     saveLocalRanking(merged);
     renderRankingTable(merged);
 
-    // 端末のLocalStorageに未送信の記録（オフライン時や以前の通信エラー時に保存されたもの）があれば自動でクラウドへ同期
+    // 端末のLocalStorageに未送信の記録があれば自動でクラウドへ同期
     const hasUnsyncedLocal = localList.some(localItem => {
       if (!localItem || !localItem.seed) return false;
       const match = remoteList.find(r => r.seed === localItem.seed);
@@ -778,6 +720,7 @@ async function fetchSharedRanking() {
         await fetchWithTimeout(SHARED_API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          keepalive: true,
           body: JSON.stringify({
             list: merged,
             resolved: allResolved
@@ -793,7 +736,7 @@ async function fetchSharedRanking() {
   }
 }
 
-// クラウドへ挑戦記録を同期
+// クラウドへ挑戦記録を同期（断念時または回文数到達時のみ実行）
 async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'abandoned', resolvedData = null) {
   if (!seed || currentStep < 1) return;
 
@@ -803,7 +746,7 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
   let localResolved = loadLocalResolved();
 
   if (found) {
-    // 誰かが回文数に到達（リクレル数ではないことを確認）した！
+    // 回文数到達（リクレル数ではないことが判明）
     const newEntries = Array.isArray(resolvedData) ? resolvedData : (resolvedData ? [resolvedData] : [{
       seed: seed,
       discoverer: currentUserName,
@@ -818,75 +761,45 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
     const resolvedSeeds = new Set(newEntries.map(e => (typeof e === 'object' ? e.seed : e)));
     localList = localList.filter(item => !resolvedSeeds.has(item.seed));
   } else {
-    // まだ回文数になっていない挑戦
-    // すでに誰かが確認済み（リクレル数でない）ならランキングに乗せない
+    // 探索断念（リクレル数候補として最高記録を保存）
     const isAlreadyResolved = localResolved.some(r => (typeof r === 'object' ? r.seed === seed : r === seed));
     if (isAlreadyResolved) {
       localList = localList.filter(item => item.seed !== seed);
     } else {
-      const myKey = `${seed}___${currentDeviceId}`;
-      const idx = localList.findIndex(item => `${item.seed}___${item.deviceId || item.userName}` === myKey);
-      if (idx >= 0) {
-        localList[idx].steps = currentStep;
-        localList[idx].digits = digits;
-        localList[idx].status = state;
-        localList[idx].userName = currentUserName;
-        localList[idx].deviceId = currentDeviceId;
-        if (state === 'running') localList[idx].lastActiveAt = now;
-        if (state === 'paused') localList[idx].pausedAt = now;
-      } else {
-        // 各プレイヤー・各端末の挑戦をランキングに追加
+      const existing = localList.find(item => item.seed === seed);
+      if (!existing || currentStep > existing.steps) {
+        localList = localList.filter(item => item.seed !== seed);
         localList.push({
           seed,
           userName: currentUserName,
-          deviceId: currentDeviceId,
           steps: currentStep,
           digits,
-          status: state,
-          lastActiveAt: state === 'running' ? now : 0,
-          pausedAt: state === 'paused' ? now : 0
+          updatedAt: now
         });
+        localList.sort((a, b) => b.steps - a.steps);
       }
-      localList.sort((a, b) => b.steps - a.steps);
     }
   }
+
   saveLocalRanking(localList);
   renderRankingTable(localList);
 
-  const myKey = `${seed}___${currentDeviceId}`;
-
-  // 同時リクエスト重複防止（ただし確定時は優先送信。8秒以上経過していれば自動復帰）
-  if (isSyncingRanking && state === 'running' && (Date.now() - lastSyncStartTime < 8000)) return;
   isSyncingRanking = true;
   lastSyncStartTime = Date.now();
 
   try {
-    let remoteList = null;
+    let remoteList = [];
     let remoteResolved = [];
-
-    // 直近12秒以内に取得したクラウドデータがあれば再利用（GETリクエストを半減しレート制限を回避）
-    if (state === 'running' && Date.now() - lastKnownCloudData.fetchedAt < 12000 && Array.isArray(lastKnownCloudData.list) && lastKnownCloudData.list.length > 0) {
-      remoteList = lastKnownCloudData.list;
-      remoteResolved = lastKnownCloudData.resolved || [];
-    } else {
-      try {
-        const getRes = await fetchWithTimeout(getSharedApiUrl(), {}, 5000);
-        if (getRes.ok) {
-          const json = await getRes.json();
-          if (json) {
-            remoteList = (json.data && Array.isArray(json.data.list)) ? json.data.list : (Array.isArray(json.list) ? json.list : []);
-            remoteResolved = (json.data && Array.isArray(json.data.resolved)) ? json.data.resolved : (Array.isArray(json.resolved) ? json.resolved : []);
-            lastKnownCloudData = { list: remoteList, resolved: remoteResolved, fetchedAt: Date.now() };
-          }
+    try {
+      const getRes = await fetchWithTimeout(getSharedApiUrl(), {}, 5000);
+      if (getRes.ok) {
+        const json = await getRes.json();
+        if (json) {
+          remoteList = (json.data && Array.isArray(json.data.list)) ? json.data.list : (Array.isArray(json.list) ? json.list : []);
+          remoteResolved = (json.data && Array.isArray(json.data.resolved)) ? json.data.resolved : (Array.isArray(json.resolved) ? json.resolved : []);
         }
-      } catch (_) {}
-    }
-
-    // クラウドデータ取得に失敗した場合は、他人のデータを消してしまうリスクを防ぐためPUT/POSTをスキップ
-    if (remoteList === null) {
-      console.warn('クラウドデータ取得に失敗したため、上書き防止のため送信をスキップしました');
-      return;
-    }
+      }
+    } catch (_) {}
 
     let allResolved = mergeResolvedList(remoteResolved, localResolved);
     if (found && resolvedData) {
@@ -895,37 +808,7 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
     }
     saveLocalResolved(allResolved);
 
-    const allResolvedSeeds = new Set(allResolved.map(r => (typeof r === 'object' ? r.seed : r)));
     let merged = mergeRankings(remoteList, localList, allResolved);
-
-    if (found || allResolvedSeeds.has(seed)) {
-      merged = merged.filter(item => !allResolvedSeeds.has(item.seed));
-    } else {
-      const mIdx = merged.findIndex(i => `${i.seed}___${i.deviceId || i.userName}` === myKey);
-      if (mIdx >= 0) {
-        merged[mIdx].steps = currentStep;
-        merged[mIdx].digits = digits;
-        merged[mIdx].status = state;
-        merged[mIdx].userName = currentUserName;
-        merged[mIdx].deviceId = currentDeviceId;
-        if (state === 'running') merged[mIdx].lastActiveAt = now;
-        if (state === 'paused') merged[mIdx].pausedAt = now;
-      } else {
-        merged.push({
-          seed,
-          userName: currentUserName,
-          deviceId: currentDeviceId,
-          steps: currentStep,
-          digits,
-          status: state,
-          lastActiveAt: state === 'running' ? now : 0,
-          pausedAt: state === 'paused' ? now : 0
-        });
-      }
-      merged.sort((a, b) => b.steps - a.steps);
-    }
-
-    // 画面のテーブルとローカルも最新のmergedで即時同期
     saveLocalRanking(merged);
     renderRankingTable(merged);
 
@@ -939,13 +822,12 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
       })
     }, 6000);
 
-    // ランキング確定・更新時のDiscord通知（前回の最高ステップ数を実際に上回った時のみ送信！）
-    if (!found && !allResolvedSeeds.has(seed) && (state === 'abandoned' || state === 'paused')) {
+    // Discord通知（前回の最高手数を上回った時のみ送信）
+    if (!found) {
       const prevBest = knownBestStepsMap[seed] || 0;
       if (currentStep > prevBest) {
-        knownBestStepsMap[seed] = currentStep; // 新しい記録を記憶
-        const displayList = getBestRankingList(merged);
-        const rankIdx = displayList.findIndex(i => i.seed === seed);
+        knownBestStepsMap[seed] = currentStep;
+        const rankIdx = merged.findIndex(i => i.seed === seed);
         const desc = prevBest === 0
           ? `「${currentUserName}」が数字「${seed}」で新たにランキングにランクインしました！`
           : `「${currentUserName}」が数字「${seed}」の記録を ${prevBest.toLocaleString()}手 から ${currentStep.toLocaleString()}手 に更新しました！`;
@@ -975,90 +857,23 @@ function recordChallenge(seed, currentStep, digits, found, state = 'abandoned', 
   syncChallengeToCloud(seed, currentStep, digits, found, state, resolvedData);
 }
 
-// 各数字（seed）ごとに最も進んでいる（手数が最も多い）人、または現在「実行中」の挑戦を抽出したランキングリストを取得
+// 各数字ごとに最も進んでいる人のリストを取得
 function getBestRankingList(list = loadLocalRanking()) {
   if (!Array.isArray(list)) return [];
   const map = new Map();
-  const now = Date.now();
-
   list.forEach(item => {
     if (!item || !item.seed) return;
-    const isLive = item.status === 'running' && item.lastActiveAt && ((now - item.lastActiveAt < LIVE_ACTIVE_THRESHOLD_MS) || (item.lastActiveAt > now && item.lastActiveAt - now < 60000));
-    const isRecentlyPaused = item.status === 'paused' && item.pausedAt && ((now - item.pausedAt < PAUSED_TIMEOUT_MS) || (item.pausedAt > now && item.pausedAt - now < 60000));
-
     const existing = map.get(item.seed);
-    if (!existing) {
-      map.set(item.seed, {
-        ...item,
-        _isLive: isLive,
-        _isPaused: isRecentlyPaused,
-        bestEverSteps: item.steps
-      });
-      return;
-    }
-
-    const existingIsLive = existing._isLive;
-    const existingIsPaused = existing._isPaused;
-    const newBestSteps = Math.max(item.steps, existing.bestEverSteps || existing.steps);
-
-    // 優先判定1: 現在「実行中」の挑戦がある場合は、実行中の方を画面に最優先表示！
-    if (isLive && !existingIsLive) {
-      map.set(item.seed, {
-        ...item,
-        _isLive: true,
-        _isPaused: false,
-        bestEverSteps: newBestSteps
-      });
-    } else if (!isLive && existingIsLive) {
-      // 既存がすでに実行中なら、歴代最高手数の情報だけ更新して実行中を維持
-      existing.bestEverSteps = newBestSteps;
-    } else if (isLive && existingIsLive) {
-      // 複数端末で同じ数を実行中の場合、手数が進んでいる方（または通信が新しい方）を表示
-      if (item.steps > existing.steps || (item.lastActiveAt || 0) > (existing.lastActiveAt || 0)) {
-        map.set(item.seed, {
-          ...item,
-          _isLive: true,
-          _isPaused: false,
-          bestEverSteps: newBestSteps
-        });
-      } else {
-        existing.bestEverSteps = newBestSteps;
-      }
-    } else if (isRecentlyPaused && !existingIsPaused) {
-      // どちらも実行中ではないが、一方が停止中の場合
-      map.set(item.seed, {
-        ...item,
-        _isLive: false,
-        _isPaused: true,
-        bestEverSteps: newBestSteps
-      });
-    } else {
-      // どちらも断念・停止中の場合、より手数の多い記録を採用
-      if (item.steps > existing.steps) {
-        map.set(item.seed, {
-          ...item,
-          _isLive: false,
-          _isPaused: existingIsPaused || isRecentlyPaused,
-          bestEverSteps: newBestSteps
-        });
-      } else {
-        existing.bestEverSteps = newBestSteps;
-      }
+    if (!existing || item.steps > existing.steps) {
+      map.set(item.seed, item);
     }
   });
-
   const sorted = Array.from(map.values());
-  sorted.sort((a, b) => {
-    // 順位ソート：実行中であればその現在のステップ数（または歴代最高）、断念であれば歴代最高
-    const aSteps = Math.max(a.steps, a.bestEverSteps || 0);
-    const bSteps = Math.max(b.steps, b.bestEverSteps || 0);
-    return bSteps - aSteps;
-  });
+  sorted.sort((a, b) => b.steps - a.steps);
   return sorted;
 }
 
 function renderRankingTable(list = loadLocalRanking()) {
-  // 同じ数に複数人が挑戦していても、その数の中で「一番進んでいる人」、または現在「実行中」の人を表示
   const displayList = getBestRankingList(list);
 
   if (!displayList || displayList.length === 0) {
@@ -1068,33 +883,14 @@ function renderRankingTable(list = loadLocalRanking()) {
   }
 
   emptyRankingMessage.style.display = 'none';
-  const now = Date.now();
 
   rankingTableBody.innerHTML = displayList.map((item, index) => {
-    const isLive = item._isLive !== undefined ? item._isLive : (item.status === 'running' && item.lastActiveAt && ((now - item.lastActiveAt < LIVE_ACTIVE_THRESHOLD_MS) || (item.lastActiveAt > now && item.lastActiveAt - now < 60000)));
-    const isRecentlyPaused = item._isPaused !== undefined ? item._isPaused : (item.status === 'paused' && item.pausedAt && ((now - item.pausedAt < PAUSED_TIMEOUT_MS) || (item.pausedAt > now && item.pausedAt - now < 60000)));
-
-    let stateLabel = '<span class="state-abandoned">断念</span>';
-    if (isLive) {
-      stateLabel = '<span class="state-running">実行中</span>';
-    } else if (isRecentlyPaused) {
-      stateLabel = '<span class="state-paused">停止中</span>';
-    } else {
-      stateLabel = '<span class="state-abandoned">断念</span>';
-    }
-
-    const hasHigherBest = isLive && item.bestEverSteps && item.bestEverSteps > item.steps;
-    const stepsHtml = hasHigherBest
-      ? `${item.steps.toLocaleString()} 手 <small style="display:block;font-size:0.75rem;color:var(--text-muted);">(歴代: ${item.bestEverSteps.toLocaleString()}手)</small>`
-      : `${item.steps.toLocaleString()} 手`;
-
     return `
       <tr>
         <td><strong>${index + 1}位</strong></td>
         <td class="num-cell">${item.seed}</td>
         <td>${escapeHtml(item.userName || '名無し')}</td>
-        <td>${stateLabel}</td>
-        <td>${stepsHtml}</td>
+        <td>${item.steps.toLocaleString()} 手</td>
         <td>${item.digits.toLocaleString()} 桁</td>
         <td><button class="btn-try" data-val="${item.seed}">試す</button></td>
       </tr>
@@ -1131,22 +927,26 @@ if (userNameInput) {
   });
 }
 
-// ページ離脱・リロード時は「諦める」と同じ扱いで断念を記録（keepalive で確実にクラウド同期）
+// ページ離脱・リロード時は断念を記録（keepalive で確実にクラウド同期）
 window.addEventListener('beforeunload', () => {
   if (step > 0 && !isPalindromeFound && initialSeed) {
     const curDigits = currentNumber.toString().length;
     try {
       const currentUserName = getUserName();
-      const localList = loadLocalRanking();
-      const myKey = `${initialSeed}___${currentDeviceId}`;
-      const idx = localList.findIndex(item => `${item.seed}___${item.deviceId || item.userName}` === myKey);
-      if (idx >= 0) {
-        localList[idx].steps = step;
-        localList[idx].digits = curDigits;
-        localList[idx].status = 'abandoned';
-        localList[idx].pausedAt = Date.now();
+      let localList = loadLocalRanking();
+      const existing = localList.find(item => item.seed === initialSeed);
+      if (!existing || step > existing.steps) {
+        localList = localList.filter(item => item.seed !== initialSeed);
+        localList.push({
+          seed: initialSeed,
+          userName: currentUserName,
+          steps: step,
+          digits: curDigits,
+          updatedAt: Date.now()
+        });
+        localList.sort((a, b) => b.steps - a.steps);
+        saveLocalRanking(localList);
       }
-      saveLocalRanking(localList);
 
       fetch(SHARED_API_URL, {
         method: 'POST',
@@ -1173,10 +973,10 @@ window.addEventListener('beforeunload', () => {
   }
 });
 
-// 初期実行 & 定期自動フェッチ（5秒ごと）および画面復帰時即時フェッチ
+// 初期実行 & 定期自動フェッチ（8秒ごと）および画面復帰時即時フェッチ
 speedDisplay.textContent = speedSettings[speedRange.value].label;
 fetchSharedRanking();
-setInterval(fetchSharedRanking, 5000);
+setInterval(fetchSharedRanking, 8000);
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {

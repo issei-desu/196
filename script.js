@@ -57,6 +57,9 @@ try {
   localStorage.removeItem('lychrel_active_session_v2');
 } catch (_) {}
 const SHARED_API_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a17e2139ea2a01';
+function getSharedApiUrl() {
+  return `${SHARED_API_URL}?_t=${Date.now()}`;
+}
 const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1564685131074248704/MyBLBiWkmXFq6paU6WmpJA-VBSWkkbRu2rLRaJrabU1fY7ss5JXDps8Bs4WKuYjNwYrz';
 
 // 複数端末でのリアルタイム共存のための端末識別ID
@@ -743,7 +746,7 @@ function mergeRankings(remoteList = [], localList = [], resolvedList = []) {
 // クラウドからランキングを取得
 async function fetchSharedRanking() {
   try {
-    const res = await fetchWithTimeout(SHARED_API_URL, { cache: 'no-store' }, 5000);
+    const res = await fetchWithTimeout(getSharedApiUrl(), {}, 5000);
     if (!res.ok) throw new Error('Failed to fetch shared ranking');
     const json = await res.json();
     const remoteList = json.data && Array.isArray(json.data.list) ? json.data.list : [];
@@ -835,7 +838,7 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
     let remoteList = null;
     let remoteResolved = [];
     try {
-      const getRes = await fetchWithTimeout(SHARED_API_URL, { cache: 'no-store' }, 5000);
+      const getRes = await fetchWithTimeout(getSharedApiUrl(), {}, 5000);
       if (getRes.ok) {
         const json = await getRes.json();
         if (json && json.data) {
@@ -895,7 +898,6 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
     await fetchWithTimeout(SHARED_API_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      keepalive: true,
       body: JSON.stringify({
         name: 'lychrel_shared_ranking',
         data: {
@@ -1087,7 +1089,7 @@ if (downloadResolvedCsvBtn) {
       // 最新のresolvedリストを取得
       let resolvedList = loadLocalResolved();
       try {
-        const res = await fetchWithTimeout(SHARED_API_URL, { cache: 'no-store' }, 5000);
+        const res = await fetchWithTimeout(getSharedApiUrl(), {}, 5000);
         if (res.ok) {
           const json = await res.json();
           const remoteResolved = json.data && Array.isArray(json.data.resolved) ? json.data.resolved : [];

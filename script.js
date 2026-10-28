@@ -76,6 +76,14 @@ function getDeviceId() {
 }
 const currentDeviceId = getDeviceId();
 
+// タイムアウト付きフェッチ関数（ネットワークハングによる処理停止を防止）
+function fetchWithTimeout(url, options = {}, timeoutMs = 6000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: controller.signal })
+    .finally(() => clearTimeout(id));
+}
+
 // Discordへの通知送信共通関数
 function sendDiscordWebhook({ title, description, color, fields }) {
   if (!DISCORD_WEBHOOK_URL) return;
@@ -133,9 +141,10 @@ function sendDiscordAccessNotification() {
   });
 }
 let isSyncingRanking = false;
+let lastSyncStartTime = 0;
 let liveSyncTimer = null;
 let isPageUnloading = false;
-const LIVE_ACTIVE_THRESHOLD_MS = 9000; // 9秒以内に更新があれば「実行中」
+const LIVE_ACTIVE_THRESHOLD_MS = 30000; // 30秒以内に更新があれば「実行中」（端末時計のズレや通信遅延に対応）
 const PAUSED_TIMEOUT_MS = 60000; // 60秒（1分）以上経過した停止中は自動で「断念」扱い
 let pausedCountdownTimer = null;
 let pausedStartTime = null;
@@ -269,7 +278,10 @@ function executeOneStep() {
 
   step++;
   const currentStr = currentNumber.toString();
-  stepHistoryNumbers.push({ seed: currentStr, stepAt: step - 1 });
+  // メモリ肥大化によるブラウザクラッシュを防ぐため、途中経過の記録は最初の100件までに制限
+  if (stepHistoryNumbers.length < 100) {
+    stepHistoryNumbers.push({ seed: currentStr, stepAt: step - 1 });
+  }
   const reversedStr = reverseString(currentStr);
   const reversedNumber = BigInt(reversedStr);
   const nextNumber = currentNumber + reversedNumber;
@@ -731,7 +743,7 @@ function mergeRankings(remoteList = [], localList = [], resolvedList = []) {
 // クラウドからランキングを取得
 async function fetchSharedRanking() {
   try {
-    const res = await fetch(SHARED_API_URL, { cache: 'no-store' });
+    const res = await fetchWithTimeout(SHARED_API_URL, { cache: 'no-store' }, 5000);
     if (!res.ok) throw new Error('Failed to fetch shared ranking');
     const json = await res.json();
     const remoteList = json.data && Array.isArray(json.data.list) ? json.data.list : [];
@@ -814,15 +826,16 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
 
   const myKey = `${seed}___${currentDeviceId}`;
 
-  // 同時リクエスト重複防止（ただし確定時は優先送信）
-  if (isSyncingRanking && state === 'running') return;
+  // 同時リクエスト重複防止（ただし確定時は優先送信。8秒以上経過していれば自動復帰）
+  if (isSyncingRanking && state === 'running' && (Date.now() - lastSyncStartTime < 8000)) return;
   isSyncingRanking = true;
+  lastSyncStartTime = Date.now();
 
   try {
     let remoteList = null;
     let remoteResolved = [];
     try {
-      const getRes = await fetch(SHARED_API_URL, { cache: 'no-store' });
+      const getRes = await fetchWithTimeout(SHARED_API_URL, { cache: 'no-store' }, 5000);
       if (getRes.ok) {
         const json = await getRes.json();
         if (json && json.data) {
@@ -879,7 +892,7 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
     saveLocalRanking(merged);
     renderRankingTable(merged);
 
-    await fetch(SHARED_API_URL, {
+    await fetchWithTimeout(SHARED_API_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       keepalive: true,
@@ -890,7 +903,7 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
           resolved: allResolved
         }
       })
-    });
+    }, 6000);
 
     // ランキング確定・更新時のDiscord通知（前回の最高ステップ数を実際に上回った時のみ送信！）
     if (!found && !allResolvedSeeds.has(seed) && (state === 'abandoned' || state === 'paused')) {
@@ -938,8 +951,9 @@ function renderRankingTable(list = loadLocalRanking()) {
   const now = Date.now();
 
   rankingTableBody.innerHTML = list.map((item, index) => {
-    const isLive = item.status === 'running' && item.lastActiveAt && (now - item.lastActiveAt < LIVE_ACTIVE_THRESHOLD_MS);
-    const isRecentlyPaused = item.status === 'paused' && item.pausedAt && (now - item.pausedAt < PAUSED_TIMEOUT_MS);
+    // 端末間の時計のわずかなズレや通信ラグを考慮して判定
+    const isLive = item.status === 'running' && item.lastActiveAt && ((now - item.lastActiveAt < LIVE_ACTIVE_THRESHOLD_MS) || (item.lastActiveAt > now && item.lastActiveAt - now < 60000));
+    const isRecentlyPaused = item.status === 'paused' && item.pausedAt && ((now - item.pausedAt < PAUSED_TIMEOUT_MS) || (item.pausedAt > now && item.pausedAt - now < 60000));
 
     let stateLabel = '<span class="state-abandoned">断念</span>';
     if (isLive) {
@@ -1042,7 +1056,7 @@ if (downloadResolvedCsvBtn) {
       // 最新のresolvedリストを取得
       let resolvedList = loadLocalResolved();
       try {
-        const res = await fetch(SHARED_API_URL);
+        const res = await fetchWithTimeout(SHARED_API_URL, { cache: 'no-store' }, 5000);
         if (res.ok) {
           const json = await res.json();
           const remoteResolved = json.data && Array.isArray(json.data.resolved) ? json.data.resolved : [];

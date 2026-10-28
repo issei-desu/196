@@ -655,16 +655,17 @@ function stopLiveSync() {
 }
 
 // リモートとローカルのリストをマージしてソート（解決済みの数は除外）
-function mergeRankings(remoteList, localList, resolvedList = []) {
-  const resolvedSet = new Set(resolvedList);
+function mergeRankings(remoteList = [], localList = [], resolvedList = []) {
+  const resolvedSet = new Set(resolvedList.map(r => (typeof r === 'object' ? r.seed : r)));
   const map = new Map();
 
   [...remoteList, ...localList].forEach(item => {
     // 誰かが回文数に到達（リクレル数ではないと確認）した数はランキングに乗せない！
     if (!item || !item.seed || resolvedSet.has(item.seed)) return;
-    const existing = map.get(item.seed);
+    const key = `${item.seed}___${item.userName || '名無し'}`;
+    const existing = map.get(key);
     if (!existing) {
-      map.set(item.seed, {
+      map.set(key, {
         seed: item.seed,
         userName: item.userName || '名無し',
         steps: item.steps,
@@ -694,7 +695,7 @@ function mergeRankings(remoteList, localList, resolvedList = []) {
         chosenStatus = itemTime >= existingTime ? (item.status || existing.status) : existing.status;
       }
 
-      map.set(item.seed, {
+      map.set(key, {
         seed: item.seed,
         userName: chosenUserName,
         steps: Math.max(item.steps, existing.steps),
@@ -708,7 +709,7 @@ function mergeRankings(remoteList, localList, resolvedList = []) {
 
   const merged = Array.from(map.values());
   merged.sort((a, b) => b.steps - a.steps);
-  return merged.slice(0, 30);
+  return merged.slice(0, 50);
 }
 
 // クラウドからランキングを取得
@@ -766,7 +767,8 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
     if (isAlreadyResolved) {
       localList = localList.filter(item => item.seed !== seed);
     } else {
-      const idx = localList.findIndex(item => item.seed === seed);
+      const myKey = `${seed}___${currentUserName}`;
+      const idx = localList.findIndex(item => `${item.seed}___${item.userName || '名無し'}` === myKey);
       if (idx >= 0) {
         if (currentStep >= localList[idx].steps) {
           localList[idx].steps = currentStep;
@@ -779,7 +781,7 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
           localList[idx].status = state;
         }
       } else {
-        // 10手で回文になる数でも、5手で諦めたらその状態でランキングに乗る！
+        // 各プレイヤーの挑戦をランキングに追加
         localList.push({
           seed,
           userName: currentUserName,
@@ -797,7 +799,8 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
   renderRankingTable(localList);
 
   // 過去記録を下回っている実行中は通信をスキップ
-  const currentBest = localList.find(item => item.seed === seed);
+  const myKey = `${seed}___${currentUserName}`;
+  const currentBest = localList.find(item => `${item.seed}___${item.userName || '名無し'}` === myKey);
   if (currentBest && currentStep < currentBest.steps && state === 'running') {
     return;
   }
@@ -807,16 +810,24 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
   isSyncingRanking = true;
 
   try {
-    let remoteList = [];
+    let remoteList = null;
     let remoteResolved = [];
     try {
       const getRes = await fetch(SHARED_API_URL);
       if (getRes.ok) {
         const json = await getRes.json();
-        remoteList = json.data && Array.isArray(json.data.list) ? json.data.list : [];
-        remoteResolved = json.data && Array.isArray(json.data.resolved) ? json.data.resolved : [];
+        if (json && json.data) {
+          remoteList = Array.isArray(json.data.list) ? json.data.list : [];
+          remoteResolved = Array.isArray(json.data.resolved) ? json.data.resolved : [];
+        }
       }
     } catch (_) {}
+
+    // クラウドデータ取得に失敗した場合は、他人のデータを消してしまうリスクを防ぐためPUTをスキップ
+    if (remoteList === null) {
+      console.warn('クラウドデータ取得に失敗したため、上書き防止のため送信をスキップしました');
+      return;
+    }
 
     let allResolved = mergeResolvedList(remoteResolved, localResolved);
     if (found && resolvedData) {
@@ -827,24 +838,11 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
 
     const allResolvedSeeds = new Set(allResolved.map(r => (typeof r === 'object' ? r.seed : r)));
     let merged = mergeRankings(remoteList, localList, allResolved);
-    let isRankUpdated = false;
-    let rankDesc = '';
-    const oldRemoteItem = remoteList.find(i => i.seed === seed);
-
-    if (!found && !allResolvedSeeds.has(seed)) {
-      if (!oldRemoteItem) {
-        isRankUpdated = true;
-        rankDesc = `数字 ${seed} が新たに挑戦ランキングにランクインしました！`;
-      } else if (currentStep > oldRemoteItem.steps) {
-        isRankUpdated = true;
-        rankDesc = `数字 ${seed} の記録が ${oldRemoteItem.steps.toLocaleString()}手 から ${currentStep.toLocaleString()}手 に更新されました！`;
-      }
-    }
 
     if (found || allResolvedSeeds.has(seed)) {
       merged = merged.filter(item => !allResolvedSeeds.has(item.seed));
     } else {
-      const mIdx = merged.findIndex(i => i.seed === seed);
+      const mIdx = merged.findIndex(i => `${i.seed}___${i.userName || '名無し'}` === myKey);
       if (mIdx >= 0) {
         if (currentStep >= merged[mIdx].steps) {
           merged[mIdx].steps = currentStep;
@@ -856,8 +854,23 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
         } else if (state !== 'running') {
           merged[mIdx].status = state;
         }
+      } else {
+        merged.push({
+          seed,
+          userName: currentUserName,
+          steps: currentStep,
+          digits,
+          status: state,
+          lastActiveAt: state === 'running' ? now : 0,
+          pausedAt: state === 'paused' ? now : 0
+        });
       }
+      merged.sort((a, b) => b.steps - a.steps);
     }
+
+    // 画面のテーブルとローカルも最新のmergedで即時同期
+    saveLocalRanking(merged);
+    renderRankingTable(merged);
 
     await fetch(SHARED_API_URL, {
       method: 'PUT',

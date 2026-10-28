@@ -59,6 +59,23 @@ try {
 const SHARED_API_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a17e2139ea2a01';
 const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1564685131074248704/MyBLBiWkmXFq6paU6WmpJA-VBSWkkbRu2rLRaJrabU1fY7ss5JXDps8Bs4WKuYjNwYrz';
 
+// 複数端末でのリアルタイム共存のための端末識別ID
+const DEVICE_ID_KEY = 'lychrel_device_id';
+function getDeviceId() {
+  let id = null;
+  try {
+    id = localStorage.getItem(DEVICE_ID_KEY);
+    if (!id) {
+      id = 'd_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36).slice(-4);
+      localStorage.setItem(DEVICE_ID_KEY, id);
+    }
+  } catch (_) {
+    id = 'd_' + Math.random().toString(36).substring(2, 9);
+  }
+  return id;
+}
+const currentDeviceId = getDeviceId();
+
 // Discordへの通知送信共通関数
 function sendDiscordWebhook({ title, description, color, fields }) {
   if (!DISCORD_WEBHOOK_URL) return;
@@ -433,6 +450,7 @@ function startAuto() {
   });
 
   startLiveSync();
+  syncChallengeToCloud(initialSeed, Math.max(step, 1), currentNumber.toString().length, false, 'running');
   runLoop();
 }
 
@@ -662,12 +680,14 @@ function mergeRankings(remoteList = [], localList = [], resolvedList = []) {
   [...remoteList, ...localList].forEach(item => {
     // 誰かが回文数に到達（リクレル数ではないと確認）した数はランキングに乗せない！
     if (!item || !item.seed || resolvedSet.has(item.seed)) return;
-    const key = `${item.seed}___${item.userName || '名無し'}`;
+    const devKey = item.deviceId || item.userName || 'unknown';
+    const key = `${item.seed}___${devKey}`;
     const existing = map.get(key);
     if (!existing) {
       map.set(key, {
         seed: item.seed,
         userName: item.userName || '名無し',
+        deviceId: devKey,
         steps: item.steps,
         digits: item.digits,
         status: item.status || 'abandoned',
@@ -675,21 +695,16 @@ function mergeRankings(remoteList = [], localList = [], resolvedList = []) {
         pausedAt: item.pausedAt || 0
       });
     } else {
-      let chosenLastActiveAt = existing.lastActiveAt || 0;
+      let chosenLastActiveAt = Math.max(item.lastActiveAt || 0, existing.lastActiveAt || 0);
       let chosenPausedAt = Math.max(item.pausedAt || 0, existing.pausedAt || 0);
       let chosenStatus = existing.status || 'abandoned';
       let chosenUserName = existing.userName || item.userName || '名無し';
 
       if (item.steps > existing.steps) {
-        chosenLastActiveAt = item.lastActiveAt || 0;
-        chosenPausedAt = item.pausedAt || 0;
         chosenStatus = item.status || existing.status;
         if (item.userName) chosenUserName = item.userName;
       } else if (item.steps === existing.steps) {
-        chosenLastActiveAt = Math.max(item.lastActiveAt || 0, existing.lastActiveAt || 0);
-        chosenPausedAt = Math.max(item.pausedAt || 0, existing.pausedAt || 0);
         if (item.userName && item.userName !== '名無し') chosenUserName = item.userName;
-
         const itemTime = Math.max(item.lastActiveAt || 0, item.pausedAt || 0);
         const existingTime = Math.max(existing.lastActiveAt || 0, existing.pausedAt || 0);
         chosenStatus = itemTime >= existingTime ? (item.status || existing.status) : existing.status;
@@ -698,6 +713,7 @@ function mergeRankings(remoteList = [], localList = [], resolvedList = []) {
       map.set(key, {
         seed: item.seed,
         userName: chosenUserName,
+        deviceId: devKey,
         steps: Math.max(item.steps, existing.steps),
         digits: item.steps > existing.steps ? item.digits : existing.digits,
         status: chosenStatus,
@@ -715,7 +731,7 @@ function mergeRankings(remoteList = [], localList = [], resolvedList = []) {
 // クラウドからランキングを取得
 async function fetchSharedRanking() {
   try {
-    const res = await fetch(SHARED_API_URL);
+    const res = await fetch(SHARED_API_URL, { cache: 'no-store' });
     if (!res.ok) throw new Error('Failed to fetch shared ranking');
     const json = await res.json();
     const remoteList = json.data && Array.isArray(json.data.list) ? json.data.list : [];
@@ -767,24 +783,22 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
     if (isAlreadyResolved) {
       localList = localList.filter(item => item.seed !== seed);
     } else {
-      const myKey = `${seed}___${currentUserName}`;
-      const idx = localList.findIndex(item => `${item.seed}___${item.userName || '名無し'}` === myKey);
+      const myKey = `${seed}___${currentDeviceId}`;
+      const idx = localList.findIndex(item => `${item.seed}___${item.deviceId || item.userName}` === myKey);
       if (idx >= 0) {
-        if (currentStep >= localList[idx].steps) {
-          localList[idx].steps = currentStep;
-          localList[idx].digits = digits;
-          localList[idx].status = state;
-          localList[idx].userName = currentUserName;
-          if (state === 'running') localList[idx].lastActiveAt = now;
-          if (state === 'paused') localList[idx].pausedAt = now;
-        } else if (state !== 'running') {
-          localList[idx].status = state;
-        }
+        localList[idx].steps = currentStep;
+        localList[idx].digits = digits;
+        localList[idx].status = state;
+        localList[idx].userName = currentUserName;
+        localList[idx].deviceId = currentDeviceId;
+        if (state === 'running') localList[idx].lastActiveAt = now;
+        if (state === 'paused') localList[idx].pausedAt = now;
       } else {
-        // 各プレイヤーの挑戦をランキングに追加
+        // 各プレイヤー・各端末の挑戦をランキングに追加
         localList.push({
           seed,
           userName: currentUserName,
+          deviceId: currentDeviceId,
           steps: currentStep,
           digits,
           status: state,
@@ -798,22 +812,17 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
   saveLocalRanking(localList);
   renderRankingTable(localList);
 
-  // 過去記録を下回っている実行中は通信をスキップ
-  const myKey = `${seed}___${currentUserName}`;
-  const currentBest = localList.find(item => `${item.seed}___${item.userName || '名無し'}` === myKey);
-  if (currentBest && currentStep < currentBest.steps && state === 'running') {
-    return;
-  }
+  const myKey = `${seed}___${currentDeviceId}`;
 
-  // 同時リクエスト重複防止
-  if (isSyncingRanking) return;
+  // 同時リクエスト重複防止（ただし確定時は優先送信）
+  if (isSyncingRanking && state === 'running') return;
   isSyncingRanking = true;
 
   try {
     let remoteList = null;
     let remoteResolved = [];
     try {
-      const getRes = await fetch(SHARED_API_URL);
+      const getRes = await fetch(SHARED_API_URL, { cache: 'no-store' });
       if (getRes.ok) {
         const json = await getRes.json();
         if (json && json.data) {
@@ -842,22 +851,20 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
     if (found || allResolvedSeeds.has(seed)) {
       merged = merged.filter(item => !allResolvedSeeds.has(item.seed));
     } else {
-      const mIdx = merged.findIndex(i => `${i.seed}___${i.userName || '名無し'}` === myKey);
+      const mIdx = merged.findIndex(i => `${i.seed}___${i.deviceId || i.userName}` === myKey);
       if (mIdx >= 0) {
-        if (currentStep >= merged[mIdx].steps) {
-          merged[mIdx].steps = currentStep;
-          merged[mIdx].digits = digits;
-          merged[mIdx].status = state;
-          merged[mIdx].userName = currentUserName;
-          if (state === 'running') merged[mIdx].lastActiveAt = now;
-          if (state === 'paused') merged[mIdx].pausedAt = now;
-        } else if (state !== 'running') {
-          merged[mIdx].status = state;
-        }
+        merged[mIdx].steps = currentStep;
+        merged[mIdx].digits = digits;
+        merged[mIdx].status = state;
+        merged[mIdx].userName = currentUserName;
+        merged[mIdx].deviceId = currentDeviceId;
+        if (state === 'running') merged[mIdx].lastActiveAt = now;
+        if (state === 'paused') merged[mIdx].pausedAt = now;
       } else {
         merged.push({
           seed,
           userName: currentUserName,
+          deviceId: currentDeviceId,
           steps: currentStep,
           digits,
           status: state,

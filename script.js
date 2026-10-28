@@ -462,11 +462,30 @@ function startAuto() {
     ]
   });
 
+  startPeriodicSync();
   runLoop();
+}
+
+let periodicSyncTimer = null;
+function startPeriodicSync() {
+  if (periodicSyncTimer) clearInterval(periodicSyncTimer);
+  periodicSyncTimer = setInterval(() => {
+    if (isRunning && !isPalindromeFound && step > 0 && initialSeed) {
+      syncChallengeToCloud(initialSeed, step, currentNumber.toString().length, false);
+    }
+  }, 15000);
+}
+
+function stopPeriodicSync() {
+  if (periodicSyncTimer) {
+    clearInterval(periodicSyncTimer);
+    periodicSyncTimer = null;
+  }
 }
 
 function stopAuto(sendRecord = true) {
   isRunning = false;
+  stopPeriodicSync();
   if (timerId) {
     clearTimeout(timerId);
     cancelAnimationFrame(timerId);
@@ -479,7 +498,8 @@ function stopAuto(sendRecord = true) {
   if (!isPalindromeFound) {
     statusBadge.className = 'status-text status-idle';
     statusBadge.textContent = '一時停止中';
-    if (sendRecord && step > 0) {
+    if (sendRecord && step > 0 && initialSeed) {
+      syncChallengeToCloud(initialSeed, step, currentNumber.toString().length, false);
       startPausedCountdown();
     } else {
       stopPausedCountdown();
@@ -664,18 +684,20 @@ function checkAndDisplayResolved(seed) {
   return false;
 }
 
-// リモートとローカルのリストをマージしてソート（各数字の最高手数を保持、解決済みの数は除外）
+// リモートとローカルのリストをマージしてソート（各プレイヤー×数字ごとの最高手数を保持、解決済みの数は除外）
 function mergeRankings(remoteList = [], localList = [], resolvedList = []) {
   const resolvedSet = new Set(resolvedList.map(r => (typeof r === 'object' ? r.seed : r)));
   const map = new Map();
 
   [...remoteList, ...localList].forEach(item => {
     if (!item || !item.seed || resolvedSet.has(item.seed) || typeof item.steps !== 'number') return;
-    const existing = map.get(item.seed);
+    const uName = (item.userName || '名無し').trim();
+    const key = `${item.seed}___${uName}`;
+    const existing = map.get(key);
     if (!existing || item.steps > existing.steps) {
-      map.set(item.seed, {
+      map.set(key, {
         seed: item.seed,
-        userName: item.userName || '名無し',
+        userName: uName,
         steps: item.steps,
         digits: item.digits || item.steps.toString().length,
         updatedAt: item.updatedAt || Date.now()
@@ -761,14 +783,15 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
     const resolvedSeeds = new Set(newEntries.map(e => (typeof e === 'object' ? e.seed : e)));
     localList = localList.filter(item => !resolvedSeeds.has(item.seed));
   } else {
-    // 探索断念（リクレル数候補として最高記録を保存）
+    // 探索記録の保存（各プレイヤー×数字ごとの最高記録を保持）
     const isAlreadyResolved = localResolved.some(r => (typeof r === 'object' ? r.seed === seed : r === seed));
     if (isAlreadyResolved) {
       localList = localList.filter(item => item.seed !== seed);
     } else {
-      const existing = localList.find(item => item.seed === seed);
+      const myKey = `${seed}___${currentUserName.trim()}`;
+      const existing = localList.find(item => `${item.seed}___${(item.userName || '名無し').trim()}` === myKey);
       if (!existing || currentStep > existing.steps) {
-        localList = localList.filter(item => item.seed !== seed);
+        localList = localList.filter(item => `${item.seed}___${(item.userName || '名無し').trim()}` !== myKey);
         localList.push({
           seed,
           userName: currentUserName,
@@ -857,15 +880,17 @@ function recordChallenge(seed, currentStep, digits, found, state = 'abandoned', 
   syncChallengeToCloud(seed, currentStep, digits, found, state, resolvedData);
 }
 
-// 各数字ごとに最も進んでいる人のリストを取得
+// 各プレイヤー×数字ごとに最も進んでいる記録のリストを取得
 function getBestRankingList(list = loadLocalRanking()) {
   if (!Array.isArray(list)) return [];
   const map = new Map();
   list.forEach(item => {
-    if (!item || !item.seed) return;
-    const existing = map.get(item.seed);
+    if (!item || !item.seed || typeof item.steps !== 'number') return;
+    const uName = (item.userName || '名無し').trim();
+    const key = `${item.seed}___${uName}`;
+    const existing = map.get(key);
     if (!existing || item.steps > existing.steps) {
-      map.set(item.seed, item);
+      map.set(key, item);
     }
   });
   const sorted = Array.from(map.values());
@@ -934,9 +959,10 @@ window.addEventListener('beforeunload', () => {
     try {
       const currentUserName = getUserName();
       let localList = loadLocalRanking();
-      const existing = localList.find(item => item.seed === initialSeed);
+      const myKey = `${initialSeed}___${currentUserName.trim()}`;
+      const existing = localList.find(item => `${item.seed}___${(item.userName || '名無し').trim()}` === myKey);
       if (!existing || step > existing.steps) {
-        localList = localList.filter(item => item.seed !== initialSeed);
+        localList = localList.filter(item => `${item.seed}___${(item.userName || '名無し').trim()}` !== myKey);
         localList.push({
           seed: initialSeed,
           userName: currentUserName,

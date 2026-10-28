@@ -910,7 +910,8 @@ async function syncChallengeToCloud(seed, currentStep, digits, found, state = 'a
       const prevBest = knownBestStepsMap[seed] || 0;
       if (currentStep > prevBest) {
         knownBestStepsMap[seed] = currentStep; // 新しい記録を記憶
-        const rankIdx = merged.findIndex(i => i.seed === seed);
+        const displayList = getBestRankingList(merged);
+        const rankIdx = displayList.findIndex(i => i.seed === seed);
         const desc = prevBest === 0
           ? `「${currentUserName}」が数字「${seed}」で新たにランキングにランクインしました！`
           : `「${currentUserName}」が数字「${seed}」の記録を ${prevBest.toLocaleString()}手 から ${currentStep.toLocaleString()}手 に更新しました！`;
@@ -940,8 +941,38 @@ function recordChallenge(seed, currentStep, digits, found, state = 'abandoned', 
   syncChallengeToCloud(seed, currentStep, digits, found, state, resolvedData);
 }
 
+// 各数字（seed）ごとに最も進んでいる（手数が最も多い）人だけを抽出したランキングリストを取得
+function getBestRankingList(list = loadLocalRanking()) {
+  if (!Array.isArray(list)) return [];
+  const map = new Map();
+  list.forEach(item => {
+    if (!item || !item.seed) return;
+    const existing = map.get(item.seed);
+    if (!existing) {
+      map.set(item.seed, item);
+    } else {
+      if (item.steps > existing.steps) {
+        map.set(item.seed, item);
+      } else if (item.steps === existing.steps) {
+        // ステップ数が同じ場合は、より最近アクティブな方（または実行中）を優先
+        const itemTime = Math.max(item.lastActiveAt || 0, item.pausedAt || 0);
+        const existingTime = Math.max(existing.lastActiveAt || 0, existing.pausedAt || 0);
+        if (itemTime >= existingTime || (item.status === 'running' && existing.status !== 'running')) {
+          map.set(item.seed, item);
+        }
+      }
+    }
+  });
+  const sorted = Array.from(map.values());
+  sorted.sort((a, b) => b.steps - a.steps);
+  return sorted;
+}
+
 function renderRankingTable(list = loadLocalRanking()) {
-  if (!list || list.length === 0) {
+  // 同じ数に複数人が挑戦していても、その数の中で「一番進んでいる人」だけを表示
+  const displayList = getBestRankingList(list);
+
+  if (!displayList || displayList.length === 0) {
     rankingTableBody.innerHTML = '';
     emptyRankingMessage.style.display = 'block';
     return;
@@ -950,7 +981,7 @@ function renderRankingTable(list = loadLocalRanking()) {
   emptyRankingMessage.style.display = 'none';
   const now = Date.now();
 
-  rankingTableBody.innerHTML = list.map((item, index) => {
+  rankingTableBody.innerHTML = displayList.map((item, index) => {
     // 端末間の時計のわずかなズレや通信ラグを考慮して判定
     const isLive = item.status === 'running' && item.lastActiveAt && ((now - item.lastActiveAt < LIVE_ACTIVE_THRESHOLD_MS) || (item.lastActiveAt > now && item.lastActiveAt - now < 60000));
     const isRecentlyPaused = item.status === 'paused' && item.pausedAt && ((now - item.pausedAt < PAUSED_TIMEOUT_MS) || (item.pausedAt > now && item.pausedAt - now < 60000));

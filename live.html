@@ -283,7 +283,7 @@
 
     <header class="header">
       <h1>196リクレル数 無限試行モニター</h1>
-      <p>「196は本当にリクレル数なのか？」を解明するため、サーバーで無限に反転加算・回文判定を実行中</p>
+      <p>「196は本当にリクレル数なのか？」を解明するため、サーバーで無限に反転加算・回文判定を実行中（20秒ごとに自動更新）</p>
     </header>
 
     <div id="discoveryBanner" class="discovery-banner">
@@ -413,7 +413,7 @@
         document.getElementById('discoveryBanner').style.display = 'block';
         indicator.className = 'live-badge';
         statusText.textContent = '🎉 回文数発見！';
-      } else if (diffSec <= 20) {
+      } else if (diffSec <= 90) {
         indicator.className = 'live-badge';
         statusText.textContent = 'LIVE 計算中';
       } else {
@@ -445,9 +445,9 @@
       }
     }
 
-    // Polling
+    // Polling (20秒間隔に緩和)
     fetchProgress();
-    setInterval(fetchProgress, 3000);
+    setInterval(fetchProgress, 20000);
     setInterval(updateRelativeTime, 1000);
   </script>
 </body>

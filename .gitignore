@@ -1,0 +1,9 @@
+# Build artifacts and binaries
+196shikou/lychrel_196
+*.o
+
+# Runtime state & large checkpoints
+196shikou/checkpoint.txt*
+196shikou/*.log
+196shikou/*.pid
+196shikou/progress.json.tmp

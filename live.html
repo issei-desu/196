@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>196 無限試行モニター | リクレル数探索</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --text-sub: #64748b;
+      --border: #e2e8f0;
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --accent-green: #10b981;
+      --accent-red: #ef4444;
+      --accent-yellow: #f59e0b;
+      --code-bg: #0f172a;
+      --code-text: #38bdf8;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.6;
+      padding: 24px 16px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .top-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 0.95rem;
+      transition: color 0.15s;
+    }
+    .back-link:hover {
+      text-decoration: underline;
+    }
+
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #ecfdf5;
+      color: #065f46;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border: 1px solid #a7f3d0;
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background-color: var(--accent-green);
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.3); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .header h1 {
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #1e1b4b;
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      color: var(--text-sub);
+      font-size: 0.95rem;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* Metrics Grid */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .metric-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .metric-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-sub);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .metric-value {
+      font-family: 'Fira Code', monospace;
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #1e1b4b;
+      word-break: break-all;
+    }
+
+    .metric-sub {
+      font-size: 0.8rem;
+      color: var(--text-sub);
+    }
+
+    /* Target Result Banner */
+    .discovery-banner {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      padding: 24px;
+      border-radius: 16px;
+      text-align: center;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow-lg);
+      display: none;
+    }
+    .discovery-banner h2 {
+      font-size: 1.6rem;
+      margin-bottom: 8px;
+    }
+
+    /* Preview section */
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #1e1b4b;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .preview-box {
+      background: var(--code-bg);
+      color: var(--code-text);
+      font-family: 'Fira Code', monospace;
+      font-size: 0.95rem;
+      padding: 18px;
+      border-radius: 12px;
+      overflow-x: auto;
+      line-height: 1.6;
+      box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.3);
+      word-break: break-all;
+    }
+
+    .preview-label {
+      color: #94a3b8;
+      font-size: 0.8rem;
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .preview-divider {
+      color: #64748b;
+      margin: 12px 0;
+      text-align: center;
+      font-style: italic;
+    }
+
+    /* Information / Explanations */
+    .info-section {
+      background: #f1f5f9;
+      border-radius: 14px;
+      padding: 20px;
+      font-size: 0.9rem;
+      color: #334155;
+    }
+
+    .info-section h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 8px;
+    }
+
+    .info-section ul {
+      margin-left: 20px;
+      margin-top: 6px;
+    }
+
+    .footer {
+      text-align: center;
+      color: var(--text-sub);
+      font-size: 0.85rem;
+      margin-top: 36px;
+    }
+
+    /* Offline status */
+    .status-badge-offline {
+      background: #fef2f2 !important;
+      color: #991b1b !important;
+      border-color: #fecaca !important;
+    }
+    .status-badge-offline .pulse-dot {
+      background-color: var(--accent-red) !important;
+      animation: none !important;
+    }
+
+    @media (max-width: 640px) {
+      body {
+        padding: 16px 12px;
+      }
+      .metric-value {
+        font-size: 1.45rem;
+      }
+      .header h1 {
+        font-size: 1.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <nav class="top-nav">
+      <a href="index.html" class="back-link">
+        ← リクレル数探索ゲームに戻る
+      </a>
+      <div id="liveIndicator" class="live-badge">
+        <span class="pulse-dot"></span>
+        <span id="liveStatusText">LIVE 接続中</span>
+      </div>
+    </nav>
+
+    <header class="header">
+      <h1>196リクレル数 無限試行モニター</h1>
+      <p>「196は本当にリクレル数なのか？」を解明するため、サーバーで無限に反転加算・回文判定を実行中</p>
+    </header>
+
+    <div id="discoveryBanner" class="discovery-banner">
+      <h2>🎉 回文数が発見されました！ 🎉</h2>
+      <p>196がリクレル数ではないことが証明されました！詳細は下記を確認してください。</p>
+    </div>
+
+    <!-- Metrics -->
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <span class="metric-title">現在のステップ数</span>
+        <span id="stepDisplay" class="metric-value">---</span>
+        <span class="metric-sub">累計反転加算回数</span>
+      </div>
+
+      <div class="metric-card">
+        <span class="metric-title">現在の桁数</span>
+        <span id="digitsDisplay" class="metric-value">---</span>
+        <span class="metric-sub">桁数 (約0.41桁/ステップ増加)</span>
+      </div>
+
+      <div class="metric-card">
+        <span class="metric-title">計算速度</span>
+        <span id="speedDisplay" class="metric-value">---</span>
+        <span class="metric-sub">ステップ / 秒</span>
+      </div>
+
+      <div class="metric-card">
+        <span class="metric-title">最終更新</span>
+        <span id="updatedDisplay" class="metric-value">---</span>
+        <span class="metric-sub" id="updatedRelative">受信待機中...</span>
+      </div>
+    </div>
+
+    <!-- Number Preview -->
+    <section class="card">
+      <div class="section-title">
+        <span>現在計算中の数値プレビュー</span>
+        <span style="font-size: 0.85rem; color: var(--text-sub);" id="previewDigitsCount"></span>
+      </div>
+      <div class="preview-box">
+        <span class="preview-label">▼ 最上位（先頭）60桁:</span>
+        <div id="previewHead">読み込み中...</div>
+        <div class="preview-divider">... （中略: 巨大数値のため中間桁は省略） ...</div>
+        <span class="preview-label">▼ 最下位（末尾）60桁:</span>
+        <div id="previewTail">読み込み中...</div>
+      </div>
+    </section>
+
+    <!-- Info Explanations -->
+    <section class="info-section">
+      <h3>💡 196問題（Lychrel Numbers）とは？</h3>
+      <p>
+        自然数の桁を反転させて元の数に足す操作を繰り返したとき、決して回文数（121や7337のように左右対称な数）にならない数を<strong>リクレル数</strong>と呼びます。
+        10進数で最も小さいリクレル数の有力候補が「<strong>196</strong>」です。
+      </p>
+      <ul>
+        <li>もし反転加算のループのどこかで1回でも回文数になれば、<strong>「196はリクレル数ではない」ことが数学的に証明</strong>されます。</li>
+        <li>本モニターでは、サーバー上でネイティブC++による超高速演算（Base-10 Direct Addition）をバックグラウンドで走らせ、回文数に到達するか常時探索しています。</li>
+      </ul>
+    </section>
+
+    <footer class="footer">
+      <p>196 Lychrel Number Infinite Search Monitor &copy; 2026 issei-desu</p>
+    </footer>
+  </div>
+
+  <script>
+    const KVDB_URL = 'https://kvdb.io/C73anz47CwZ5a14fmn1Rba/live_196';
+    const FALLBACK_URL = 'progress.json';
+
+    let lastDataTime = 0;
+
+    async function fetchProgress() {
+      try {
+        let res = null;
+        try {
+          res = await fetch(KVDB_URL + '?t=' + Date.now(), { cache: 'no-store' });
+        } catch (e) {
+          console.warn('KVDB fetch failed, trying local progress.json fallback', e);
+        }
+
+        if (!res || !res.ok) {
+          res = await fetch(FALLBACK_URL + '?t=' + Date.now(), { cache: 'no-store' });
+        }
+
+        if (!res.ok) {
+          throw new Error('Failed to fetch progress data');
+        }
+
+        const data = await res.json();
+        updateUI(data);
+      } catch (err) {
+        console.error('Fetch error:', err);
+        markOffline();
+      }
+    }
+
+    function updateUI(data) {
+      const step = data.step || 0;
+      const digits = data.digits || 0;
+      const speed = data.speed || 0;
+      const updatedAt = data.updatedAt || Date.now();
+      const isFound = data.found === true;
+
+      document.getElementById('stepDisplay').textContent = step.toLocaleString();
+      document.getElementById('digitsDisplay').textContent = digits.toLocaleString() + ' 桁';
+      document.getElementById('speedDisplay').textContent = speed.toLocaleString(undefined, { maximumFractionDigits: 1 }) + ' /s';
+
+      lastDataTime = updatedAt;
+      const date = new Date(updatedAt);
+      document.getElementById('updatedDisplay').textContent = 
+        date.getHours().toString().padStart(2, '0') + ':' +
+        date.getMinutes().toString().padStart(2, '0') + ':' +
+        date.getSeconds().toString().padStart(2, '0');
+
+      document.getElementById('previewDigitsCount').textContent = `合計 ${digits.toLocaleString()} 桁`;
+      document.getElementById('previewHead').textContent = data.previewHead || '---';
+      document.getElementById('previewTail').textContent = data.previewTail || '---';
+
+      // Live status check
+      const diffSec = Math.floor((Date.now() - updatedAt) / 1000);
+      const indicator = document.getElementById('liveIndicator');
+      const statusText = document.getElementById('liveStatusText');
+
+      if (isFound) {
+        document.getElementById('discoveryBanner').style.display = 'block';
+        indicator.className = 'live-badge';
+        statusText.textContent = '🎉 回文数発見！';
+      } else if (diffSec <= 20) {
+        indicator.className = 'live-badge';
+        statusText.textContent = 'LIVE 計算中';
+      } else {
+        indicator.className = 'live-badge status-badge-offline';
+        statusText.textContent = '一時停止 / 更新停止中';
+      }
+
+      updateRelativeTime();
+    }
+
+    function markOffline() {
+      const indicator = document.getElementById('liveIndicator');
+      const statusText = document.getElementById('liveStatusText');
+      indicator.className = 'live-badge status-badge-offline';
+      statusText.textContent = 'オフライン';
+    }
+
+    function updateRelativeTime() {
+      if (!lastDataTime) return;
+      const diffSec = Math.floor((Date.now() - lastDataTime) / 1000);
+      const relElem = document.getElementById('updatedRelative');
+      if (diffSec < 5) {
+        relElem.textContent = 'たった今更新';
+      } else if (diffSec < 60) {
+        relElem.textContent = `${diffSec} 秒前に更新`;
+      } else {
+        const min = Math.floor(diffSec / 60);
+        relElem.textContent = `${min} 分前に更新`;
+      }
+    }
+
+    // Polling
+    fetchProgress();
+    setInterval(fetchProgress, 3000);
+    setInterval(updateRelativeTime, 1000);
+  </script>
+</body>
+</html>
